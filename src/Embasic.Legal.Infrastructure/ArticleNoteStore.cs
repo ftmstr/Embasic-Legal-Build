@@ -189,5 +189,40 @@ public sealed class ArticleNoteStore : IDisposable
             "ok", StringComparison.OrdinalIgnoreCase);
     }
 
+
+    /// <summary>
+    /// Insert a complete batch without upserts. Any pre-existing key or ID fails
+    /// the whole transaction; timestamps and original note IDs are preserved.
+    /// Only intended for explicit, previewed migration into an authenticated vault.
+    /// </summary>
+    public void InsertUnchangedBatch(IReadOnlyList<ArticleNote> notes)
+    {
+        ArgumentNullException.ThrowIfNull(notes);
+        if (notes.Count == 0) throw new ArgumentException("Boş not aktarımı yapılamaz.");
+        using var transaction = _connection.BeginTransaction();
+        foreach (var note in notes)
+        {
+            note.Key.Validate();
+            if (string.IsNullOrWhiteSpace(note.Id) || note.Id.Length > 128 ||
+                string.IsNullOrWhiteSpace(note.Text) || note.Text.Length > 100_000)
+                throw new InvalidDataException("Aktarım notunun ID veya içeriği geçersiz.");
+            using var cmd = _connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = """
+                INSERT INTO ArticleNotes (Id, LawNumber, ArticleKey, SubdivisionKey,
+                    VersionKey, NoteText, CreatedUtc, UpdatedUtc)
+                VALUES ($id, $law, $article, $subdivision, $version, $text, $created, $updated);
+                """;
+            cmd.Parameters.AddWithValue("$id", note.Id);
+            BindIdentity(cmd, note.Key);
+            cmd.Parameters.AddWithValue("$text", note.Text);
+            cmd.Parameters.AddWithValue("$created", note.CreatedUtc.ToString("O", CultureInfo.InvariantCulture));
+            cmd.Parameters.AddWithValue("$updated", note.UpdatedUtc.ToString("O", CultureInfo.InvariantCulture));
+            if (cmd.ExecuteNonQuery() != 1)
+                throw new IOException("Not aktarımında beklenmeyen kayıt sayısı.");
+        }
+        transaction.Commit();
+    }
+
     public void Dispose() => _connection.Dispose();
 }
