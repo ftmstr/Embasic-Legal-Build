@@ -23,5 +23,8 @@ No official TCK/CMK source PDF raw bytes, verified source matching, historic tem
 attestation or 7571 case-applicability proof has been obtained.
 GitHub Windows CI != physical Windows end-user acceptance.
 
+## Dependency security gate
+Original TUR002 CI exposed NU1903 for transitive SQLitePCLRaw.lib.e_sqlite3 2.1.11 (GHSA-2m69-gcr7-jv3q). A direct SQLitePCLRaw.bundle_e_sqlite3 3.0.5 reference replaces that old native chain, per upstream package instructions; packages are subject to fresh Windows restore and test verification. No NuGetAuditSuppress used. CI treats high/critical NuGet vulnerability warnings as errors (NU1903/NU1904). The public upstream package page indicates Apache-2.0 for SQLitePCLRaw; exact binary/notice/distribution inventory remains a release gate.
+
 ## Distribution
 No main merge, installer, code signing or release. ALPHA / LEGAL PRODUCTION NO-GO.
