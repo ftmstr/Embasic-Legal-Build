@@ -8,4 +8,7 @@
     <!-- Explicit 3.x bundle replaces the old vulnerable SQLite native runtime transitively resolved by 10.0.0. -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Embasic.Legal.Core/Embasic.Legal.Core.csproj" />
+  </ItemGroup>
 </Project>

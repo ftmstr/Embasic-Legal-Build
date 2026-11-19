@@ -1,20 +1,24 @@
-# Embasic Legal 2.0 — Windows Alpha (TUR 001)
+# Embasic Legal 2.0 — Native Windows Alpha TUR003
 
-A genuine WPF/.NET 10 Windows desktop application under development. This is not the legacy browser/HTML launcher. Source status: **ALPHA, LEGAL PRODUCTION NO-GO**.
+A real C#/.NET 10 WPF Windows executable; not an HTML/browser launcher.
 
-## Current scope
-- Two native date tools: event/reference date difference with optional year/month/day shift; one-date year/month/day shift.
-- Exactly one Gece Vakti screen, which refuses to claim official sunrise/sunset or TCK night calculations until the Adalet Bakanlığı/UYAP chart source is verified.
-- WPF theme switching with local preference, detached Windows work window.
-- Metadata-only directory of 15 regulations. No official full law text, full-text search or notes yet.
-- No text editor.
+**ALPHA / LEGAL PRODUCTION NO-GO.** Development is in stacked Draft PRs; main remains unchanged.
 
-## Build (Windows, .NET 10 SDK)
-Run: dotnet restore Embasic.Legal.slnx
-Then: dotnet build Embasic.Legal.slnx -c Release
-Test: dotnet test tests/Embasic.Legal.Tests/Embasic.Legal.Tests.csproj -c Release
-Publish: dotnet publish src/Embasic.Legal.Desktop/Embasic.Legal.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false
+## Available
+- Only two date modules with calendar arithmetic and copy-to-clipboard.
+- Only one Gece Vakti page; no invented official UYAP sunrise/sunset times.
+- 15-law metadata directory, no verified full law articles.
+- Local 5237/5271 PDF candidate importer, with source byte hash receipt but no legal-text PASS.
+- Favoriler ve Notlar: labeled SYNTHETIC-only expandable WPF note popup, 📝 sticker, 900 ms autosave, SQLite storage and atomic integrity-checked backup. No real law article can be annotated without authenticated source/version coverage.
+- Original E-terazi images and two themes.
 
-The GitHub Windows workflow will publish an **alpha artifact only**, not a signed installer, not a release. The existing LICENSE file is GPL-3.0, whereas the master prompt requests MIT; license reconciliation is pending.
+## Build on Windows
+Install .NET 10 SDK.
+dotnet restore Embasic.Legal.slnx
+dotnet build Embasic.Legal.slnx -c Release
+dotnet test tests/Embasic.Legal.Tests/Embasic.Legal.Tests.csproj -c Release
+dotnet publish src/Embasic.Legal.Desktop/Embasic.Legal.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false
 
-See docs/FEATURE-PARITY-TUR001.md and docs/ARCHITECTURE-TUR001.md. Do not upload judicial case data to this public repository.
+**SQLite notes/backups are unencrypted**; do not input sensitive case data. See docs/TUR003-OFFICIAL-SOURCE-EVIDENCE.md, docs/TUR003-NOTE-AND-WINDOWS-UAT.md, docs/TUR003-LICENSE-RELEASE-GATES.md.
+
+Current GitHub LICENSE is GPL-3.0; master v2.1 requests MIT. Logo redistribution permission remains undocumented.

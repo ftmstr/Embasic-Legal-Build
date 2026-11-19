@@ -21,12 +21,14 @@ public sealed record ArticleNote(string Id, ArticleNoteKey Key, string Text, Dat
 public sealed class ArticleNoteStore : IDisposable
 {
     private readonly SqliteConnection _connection;
+    private readonly string _databasePath;
 
     public ArticleNoteStore(string databasePath)
     {
         if (string.IsNullOrWhiteSpace(databasePath))
             throw new ArgumentException("Veritabanı yolu gerekli.", nameof(databasePath));
         var fullPath = Path.GetFullPath(databasePath);
+        _databasePath = fullPath;
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         var builder = new SqliteConnectionStringBuilder
         {
@@ -54,6 +56,9 @@ public sealed class ArticleNoteStore : IDisposable
                 ON ArticleNotes(LawNumber, ArticleKey);
             """;
         cmd.ExecuteNonQuery();
+        using var durability = _connection.CreateCommand();
+        durability.CommandText = "PRAGMA synchronous=FULL;";
+        durability.ExecuteNonQuery();
     }
 
     public static string DefaultDatabasePath =>
@@ -134,6 +139,54 @@ public sealed class ArticleNoteStore : IDisposable
         cmd.Parameters.AddWithValue("$article", key.ArticleKey);
         cmd.Parameters.AddWithValue("$subdivision", key.SubdivisionKey);
         cmd.Parameters.AddWithValue("$version", key.VersionKey);
+    }
+
+    /// <summary>SQLite online snapshot, verified before atomic replacement of an earlier backup.</summary>
+    public string BackupTo(string backupPath)
+    {
+        if (string.IsNullOrWhiteSpace(backupPath))
+            throw new ArgumentException("Yedek yolu boş olamaz.", nameof(backupPath));
+        string fullPath = Path.GetFullPath(backupPath);
+        if (string.Equals(fullPath, _databasePath, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Yedek kaynak veritabanının üzerine yazılamaz.", nameof(backupPath));
+
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        string temporary = fullPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            var builder = new SqliteConnectionStringBuilder
+            {
+                DataSource = temporary,
+                Mode = SqliteOpenMode.ReadWriteCreate,
+                Pooling = false
+            };
+            using (var backup = new SqliteConnection(builder.ToString()))
+            {
+                backup.Open();
+                _connection.BackupDatabase(backup);
+                using var integrity = backup.CreateCommand();
+                integrity.CommandText = "PRAGMA quick_check;";
+                if (!string.Equals(Convert.ToString(integrity.ExecuteScalar(),
+                        CultureInfo.InvariantCulture), "ok", StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("SQLite yedeği bütünlük kontrolünü geçemedi.");
+            }
+
+            // The previous complete backup survives failed temporary writes.
+            File.Move(temporary, fullPath, overwrite: true);
+            return fullPath;
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
+    public bool CheckIntegrity()
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "PRAGMA quick_check;";
+        return string.Equals(Convert.ToString(cmd.ExecuteScalar(), CultureInfo.InvariantCulture),
+            "ok", StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose() => _connection.Dispose();
