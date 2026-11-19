@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -66,23 +67,25 @@ public sealed class MainViewModel : ObservableViewModel
 
     private void Navigate(string? key)
     {
-        (CurrentTitle, CurrentPage) = key switch
+        object page = key switch
         {
-            "home" => ("Ana Sayfa", new DashboardViewModel()),
-            "hub" => ("Adli Hesaplama Merkezi", new CalculatorHubViewModel()),
-            "dates" => ("Belirli Tarih / Olay Tarihi", new DateRangeViewModel()),
-            "shift" => ("Tarihe Gün / Ay / Yıl", new DateShiftViewModel()),
-            "night" => ("Gece Vakti", new NightViewModel()),
-            "laws" => ("Mevzuat", new LegislationViewModel()),
-            "alternatives" => ("Alternatif Çözümler", new PlaceholderViewModel("Alternatif Çözümler", "Kaynaklı hukuki karar destek modülü: sonraki turlarda. Üretim NO-GO.")),
-            "detention" => ("Tutuklama", new PlaceholderViewModel("Tutuklama", "Doğrulanmış CMK içeriği gelene kadar otomatik karar üretilmez.")),
-            "supervision" => ("Adli Kontrol", new PlaceholderViewModel("Adli Kontrol", "Doğrulanmış mevzuat ve insan incelemesi gereklidir.")),
-            "search" => ("Arama ve El Koyma", new PlaceholderViewModel("Arama ve El Koyma", "Adli ve önleme araması ayrı ele alınacaktır. Modül henüz etkin değil.")),
-            "notes" => ("Favoriler ve Notlar", new PlaceholderViewModel("Favoriler ve Notlar", "Madde notu baloncuğu ve sticker altyapısı TUR 001 kapsamı dışında; planlandı.")),
-            "updates" => ("Güncellemeler", new PlaceholderViewModel("Güncellemeler", "Resmî kaynak edinme ve sürüm kontrolü henüz etkin değil. Ağ erişimi otomatik başlatılmaz.")),
-            "settings" => ("Ayarlar ve Hakkında", new PlaceholderViewModel("Ayarlar ve Hakkında", "Embasic Legal 2.0 Alpha. WPF/.NET 10. Güvenilir hukuk içeriği denetimi bekleniyor.")),
-            _ => ("Ana Sayfa", new DashboardViewModel())
+            "home" => new DashboardViewModel(),
+            "hub" => new CalculatorHubViewModel(),
+            "dates" => new DateRangeViewModel(),
+            "shift" => new DateShiftViewModel(),
+            "night" => new NightViewModel(),
+            "laws" => new LegislationViewModel(),
+            "alternatives" => new PlaceholderViewModel("Alternatif Çözümler", "Kaynaklı hukuki karar destek modülü: sonraki turlarda. Üretim NO-GO."),
+            "detention" => new PlaceholderViewModel("Tutuklama", "Doğrulanmış CMK içeriği gelene kadar otomatik karar üretilmez."),
+            "supervision" => new PlaceholderViewModel("Adli Kontrol", "Doğrulanmış mevzuat ve insan incelemesi gereklidir."),
+            "search" => new PlaceholderViewModel("Arama ve El Koyma", "Adli ve önleme araması ayrı ele alınacaktır. Modül henüz etkin değil."),
+            "notes" => new PlaceholderViewModel("Favoriler ve Notlar", "Madde notu baloncuğu ve sticker altyapısı TUR 001 kapsamı dışında; planlandı."),
+            "updates" => new PlaceholderViewModel("Güncellemeler", "Resmî kaynak edinme ve sürüm kontrolü henüz etkin değil. Ağ erişimi otomatik başlatılmaz."),
+            "settings" => new PlaceholderViewModel("Ayarlar ve Hakkında", "Embasic Legal 2.0 Alpha. WPF/.NET 10. Güvenilir hukuk içeriği denetimi bekleniyor."),
+            _ => new DashboardViewModel()
         };
+        CurrentPage = page;
+        CurrentTitle = NavigationItems.FirstOrDefault(item => item.Key == key)?.Label.Trim().TrimStart('├', '└', ' ') ?? "Ana Sayfa";
     }
 }
 
