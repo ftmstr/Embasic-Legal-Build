@@ -6,6 +6,7 @@ on:
   pull_request:
     branches:
       - main
+      - 'tur*/**'
 permissions:
   contents: read
 jobs:
@@ -31,7 +32,15 @@ jobs:
           if (-not (Test-Path assets/Embasic_Legal_E_Terazi.ico)) { throw "ICO missing" }
           if (-not (Test-Path assets/Embasic_Legal_E_Terazi_Ikon.png)) { throw "PNG missing" }
           if (-not (Test-Path assets/LOGO-PROVENANCE-TUR002.md)) { throw "Provenance record missing" }
-          Get-FileHash -Algorithm SHA256 assets/Embasic_Legal_E_Terazi.ico,assets/Embasic_Legal_E_Terazi_Ikon.png | Format-Table
+          $expected = @{
+            'assets/Embasic_Legal_E_Terazi.ico' = 'd63486e7e387146875f81c93c83dc94b9d931d63632bfb6eb878addd4840b489'
+            'assets/Embasic_Legal_E_Terazi_Ikon.png' = 'ee0f9ed1c3c561e925d3374d07fa5e79ab678d9a07a9673ccffff1acc5c2599a'
+          }
+          foreach ($path in $expected.Keys) {
+            $actual = (Get-FileHash -Algorithm SHA256 $path).Hash.ToLowerInvariant()
+            if ($actual -ne $expected[$path]) { throw "Original logo source hash mismatch: $path" }
+            Write-Host "$path $actual ORIGINAL_SOURCE_MATCH"
+          }
       - name: SHA-256 evidence
         shell: pwsh
         run: |
