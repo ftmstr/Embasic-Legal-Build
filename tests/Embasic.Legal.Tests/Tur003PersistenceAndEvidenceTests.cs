@@ -1,3 +1,4 @@
+using Embasic.Legal.Core;
 using Embasic.Legal.Infrastructure;
 using Xunit;
 
