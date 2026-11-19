@@ -195,6 +195,97 @@
                      Text="TUR005: Şifreli kasa ve kullanıcı onaylı eski not aktarımı Alpha aşamasındadır. Madde kimlikleri/üstveriler şifresizdir; eski notlar ayrıca düz metin olarak kalır. Fiziksel Windows kabulü yapılmadı."/>
         </StackPanel>
       </DataTemplate>
+      <DataTemplate DataType="{x:Type vm:SystematicsPage}">
+        <StackPanel>
+          <TextBlock Text="{Binding Title}" FontSize="23" FontWeight="Bold"/>
+          <TextBlock TextWrapping="Wrap" Margin="0,6,0,12" Text="{Binding Description}"/>
+          <Button Content="{Binding ButtonTitle}" Command="{Binding OpenCommand}"
+                  HorizontalAlignment="Left" FontWeight="Bold"
+                  AutomationProperties.Name="Sistematik şema ve dosya denetimi panelini aç ya da kapat"/>
+          <TextBlock Margin="0,8,0,0" FontSize="11" TextWrapping="Wrap"
+                     Text="Eğitim ve insan denetimi içindir. Mevzuatın olay tarihli resmî metni, iptal/yürütme durdurma kararları ve somut delil kontrolü ayrıca gerekir."/>
+          <Border Visibility="{Binding Opened, Converter={StaticResource BooleanVisibility}}"
+                  Padding="12" Margin="0,14,0,0" BorderThickness="1"
+                  BorderBrush="{DynamicResource BorderBrush}" CornerRadius="8">
+            <StackPanel>
+              <WrapPanel>
+                <Button Content="Öğretici Şema" Command="{Binding DiagramCommand}"/>
+                <Button Content="Dosya Üzerinde Denetim" Command="{Binding AuditCommand}"/>
+              </WrapPanel>
+              <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="430">
+                <StackPanel>
+                  <StackPanel Visibility="{Binding ShowDiagram, Converter={StaticResource BooleanVisibility}}">
+                    <TextBlock FontWeight="Bold" FontSize="17" Margin="0,10,0,8"
+                               Text="Şematik süreç — aşama → şart → dayanak → dosya belgesi"/>
+                    <ItemsControl ItemsSource="{Binding Steps}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <StackPanel>
+                            <Border BorderThickness="1" CornerRadius="7" Padding="10"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    Background="{DynamicResource BackgroundBrush}" Margin="0,4,0,1">
+                              <StackPanel>
+                                <TextBlock FontWeight="Bold" Text="{Binding Phase}"/>
+                                <TextBlock TextWrapping="Wrap" Margin="0,4,0,0" Text="{Binding Question}"/>
+                                <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"
+                                           Text="{Binding PracticalEvidence}"/>
+                                <TextBlock TextWrapping="Wrap" FontSize="11" FontWeight="Bold"
+                                           Text="{Binding LegalReferences}"/>
+                              </StackPanel>
+                            </Border>
+                            <TextBlock Text="↓" FontSize="18" HorizontalAlignment="Center"/>
+                          </StackPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                  <StackPanel Visibility="{Binding ShowAudit, Converter={StaticResource BooleanVisibility}}">
+                    <TextBlock Margin="0,10,0,6" FontSize="17" FontWeight="Bold"
+                               Text="Dosya üzerinde denetim — evrak bazlı kontrol"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="11"
+                               Text="Yalnız kimliksiz evrak referansları girin; kişisel bilgi veya soruşturma içeriği yazmayın. İşaretler yalnız RAM'de kalır. Belgeyle kontrol edildi ve Uygulanmaz durumlarına kanıt/gerekçe gereklidir."/>
+                    <TextBlock Text="Kimliksiz dosya kodu (isteğe bağlı)" Margin="0,9,0,1"/>
+                    <TextBox Text="{Binding FileCode, UpdateSourceTrigger=PropertyChanged}"
+                             Width="280" HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding ReviewSummary}" TextWrapping="Wrap"
+                               FontWeight="Bold" Margin="0,7,0,10"/>
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Padding="10" Margin="0,4,0,5" CornerRadius="6"
+                                  BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
+                                  Background="{DynamicResource BackgroundBrush}">
+                            <StackPanel>
+                              <TextBlock FontWeight="Bold" Text="{Binding Check.Phase}"/>
+                              <TextBlock Text="{Binding Check.Question}" TextWrapping="Wrap" Margin="0,3,0,4"/>
+                              <TextBlock Text="{Binding Check.LegalReferences}" TextWrapping="Wrap"
+                                         FontSize="11" Margin="0,0,0,5"/>
+                              <ComboBox Width="255" HorizontalAlignment="Left"
+                                        ItemsSource="{Binding Options}"
+                                        DisplayMemberPath="DisplayName" SelectedValuePath="Code"
+                                        SelectedValue="{Binding State, Mode=TwoWay}"/>
+                              <TextBox Text="{Binding Evrak, UpdateSourceTrigger=PropertyChanged}"
+                                       ToolTip="Kimliksiz evrak referansı veya uygulanmaz gerekçesi"
+                                       AutomationProperties.Name="Evrak referansı ve gerekçe"/>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding ReviewSummary}" FontWeight="Bold" TextWrapping="Wrap"
+                               Margin="0,9,0,8"/>
+                    <WrapPanel>
+                      <Button Content="Denetim Metnini Kopyala" Command="{Binding CopyCommand}"/>
+                      <Button Content="Kontrolü Temizle" Command="{Binding ResetCommand}"/>
+                    </WrapPanel>
+                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                  </StackPanel>
+                </StackPanel>
+              </ScrollViewer>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </DataTemplate>
       <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}">
         <StackPanel>
           <TextBlock FontSize="21" FontWeight="Bold" Text="{Binding Title}"/>

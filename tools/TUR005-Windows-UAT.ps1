@@ -21,6 +21,12 @@ Write-Host "EXE SHA256 verified: $actualSha"
 Write-Host 'No automated GUI/PDF acceptance is claimed; respond only from real observations.'
 Write-Host 'Do NOT input actual investigation notes, personal data, or passwords in this script.'
 $cases = @(
+    'Tutuklama başlığı altında Tutuklama Sistematiği açılır; öğretici şema ve dosya denetimi çalışır',
+    'Adli Kontrol başlığı altında Adli Kontrol Sistematiği açılır; CMK 109-112 ve 110/A görünür',
+    'Arama ve El Koyma Sistematiği: CMK 116-134 ile Yönetmelik adlî arama m.5-17 ayrımı gösterilir',
+    'Arama sistematiği: CMK 118 gece, 119/4 iki tanık, 127/3 24/48 ve CMK 134 özel rejim kontrol edilir',
+    'Dosya denetimi tamamı işaretlendiğinde bile uygulama hukuki uygunluk PASS üretmez',
+    'Kimliksiz evrak referansları RAM dışında otomatik kayıt edilmez; kapanış ve pano uyarıları çalışır',
     'WPF starts offline on Windows 11 x64 with authentic original E-terazi icon',
     'Light and dark themes; detached native popup; no HTML browser launcher',
     'Exactly two date modules with leap day/month-end manual evidence',
