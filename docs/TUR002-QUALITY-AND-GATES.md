@@ -9,7 +9,7 @@ TUR002 begins from that exact HEAD. TUR007 historic ZIP still contains HTML, not
 - Original E-terazi PNG + ICO imported as native assets, application window image and executable icon.
 - Original source bytes checked for provenance; rights and GPL-3.0/MIT conflict remain unresolved.
 - Two existing date modules retained; added explicit copy-result actions and new edge-case tests.
-- Microsoft.Data.Sqlite local ArticleNoteStore, version-keyed notes, parameterized queries,
+- Microsoft.Data.Sqlite local ArticleNoteStore with pooling disabled to ensure Windows file-handle release, version-keyed notes, parameterized queries,
   unicode, update-in-place and delete, no accidental remap across historical legal versions.
 - Strict PDF byte+SHA integrity checks are deliberately NOT a certificate of official source,
   article coverage, text equivalence, legal effect or case applicability.
