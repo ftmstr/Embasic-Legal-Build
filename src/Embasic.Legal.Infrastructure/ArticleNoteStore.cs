@@ -32,7 +32,8 @@ public sealed class ArticleNoteStore : IDisposable
         {
             DataSource = fullPath,
             Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Private
+            Cache = SqliteCacheMode.Private,
+            Pooling = false // Release Windows file handles immediately after Dispose; safe backup/test cleanup.
         };
         _connection = new SqliteConnection(builder.ToString());
         _connection.Open();
