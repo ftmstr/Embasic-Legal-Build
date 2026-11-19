@@ -112,6 +112,7 @@ public sealed class MainViewModel : ObservableViewModel
     ];
     private readonly NoteSandboxViewModel _notesSandbox = new();
     public bool FlushNotesOnExit() => _notesSandbox.FlushPending();
+    public void SecureCloseNotesOnExit() => _notesSandbox.SecureCloseOnExit();
     private object _currentPage = new DashboardViewModel();
     private string _currentTitle = "Ana Sayfa";
     public object CurrentPage { get => _currentPage; private set { _currentPage = value; Changed(); } }

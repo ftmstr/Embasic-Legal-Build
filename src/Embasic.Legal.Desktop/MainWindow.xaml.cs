@@ -20,6 +20,8 @@ public partial class MainWindow : Window
             MessageBox.Show("Kaydedilmemiş madde notu var. Kaydetmeden çıkış engellendi.",
                 "Embasic Legal", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+        if (!e.Cancel && DataContext is MainViewModel closingViewModel)
+            closingViewModel.SecureCloseNotesOnExit();
         base.OnClosing(e);
     }
 

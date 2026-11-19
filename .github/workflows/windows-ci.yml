@@ -41,14 +41,23 @@ jobs:
             if ($actual -ne $expected[$path]) { throw "Original logo source hash mismatch: $path" }
             Write-Host "$path $actual ORIGINAL_SOURCE_MATCH"
           }
+      - name: Package manual offline Windows UAT collector
+        shell: pwsh
+        run: |
+          Copy-Item -LiteralPath 'tools/TUR005-Windows-UAT.ps1' -Destination 'dist/EmbasicLegal/TUR005-Windows-UAT.ps1'
       - name: SHA-256 evidence
         shell: pwsh
         run: |
           $exe = 'dist/EmbasicLegal/Embasic.Legal.exe'
           if (-not (Test-Path $exe)) { throw 'EXE missing' }
           Get-FileHash -Algorithm SHA256 $exe | Format-List | Out-File -Encoding utf8 dist/EmbasicLegal/EXE_SHA256.txt
+          Get-ChildItem dist/EmbasicLegal -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+            Sort-Object Name | ForEach-Object {
+              $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)"
+            } | Set-Content -Encoding utf8 dist/EmbasicLegal/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Embasic-Legal-TUR004-Windows-Alpha-NOT-FINAL
+          name: Embasic-Legal-TUR005-Windows-Alpha-NOT-FINAL
           path: dist/EmbasicLegal/
           if-no-files-found: error

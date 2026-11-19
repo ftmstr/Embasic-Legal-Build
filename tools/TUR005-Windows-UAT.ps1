@@ -1,0 +1,71 @@
+# Embasic Legal TUR005 — manual, offline, non-sensitive Windows UAT evidence collector.
+# No UI tests are simulated and no results are marked PASS automatically.
+[CmdletBinding()]
+param([string]$ExePath = (Join-Path $PSScriptRoot 'Embasic.Legal.exe'))
+$ErrorActionPreference = 'Stop'
+if (-not $IsWindows -and $env:OS -ne 'Windows_NT') {
+    throw 'Only a physical/real Windows session can complete this UAT.'
+}
+if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
+    throw "Windows EXE not found: $ExePath"
+}
+$exe = (Resolve-Path -LiteralPath $ExePath).Path
+$actualSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $exe).Hash.ToLowerInvariant()
+$manifest = Join-Path (Split-Path -Parent $exe) 'EXE_SHA256.txt'
+if (-not (Test-Path -LiteralPath $manifest)) { throw 'EXE_SHA256.txt missing.' }
+$expectedMatch = [regex]::Match((Get-Content -LiteralPath $manifest -Raw), '(?i)\b[a-f0-9]{64}\b')
+if (-not $expectedMatch.Success -or $actualSha -ne $expectedMatch.Value.ToLowerInvariant()) {
+    throw 'EXE SHA-256 mismatch. UAT blocked.'
+}
+Write-Host "EXE SHA256 verified: $actualSha"
+Write-Host 'No automated GUI/PDF acceptance is claimed; respond only from real observations.'
+Write-Host 'Do NOT input actual investigation notes, personal data, or passwords in this script.'
+$cases = @(
+    'WPF starts offline on Windows 11 x64 with authentic original E-terazi icon',
+    'Light and dark themes; detached native popup; no HTML browser launcher',
+    'Exactly two date modules with leap day/month-end manual evidence',
+    'Gece Vakti fails closed if official UYAP timetable is unavailable',
+    'Synthetic WPF bubble, accessibility/focus, 100%, 150% and 200% DPI',
+    'AES vault wrong password blocked and reopen retains synthetic note',
+    'New vault ciphertext and legacy plaintext remain distinct (no personal data)',
+    'Consent unchecked prevents migration and preview leaves source unchanged',
+    'Consent + explicit confirmation imports synthetic legacy data without overwrite',
+    'After migration old notes remain; rollback snapshot can restore encrypted state',
+    'Corrupt/foreign backup rejected without destroying current vault',
+    'Candidate PDF changed bytes rejected, still no official fulltext PASS',
+    'Windows app closes cleanly while no dirty notes, unsaved notes block close',
+    'No sensitive data transferred, network upload or installer/release'
+)
+$results = @()
+foreach ($case in $cases) {
+    Write-Host ''
+    Write-Host $case
+    $answer = (Read-Host 'P=observed PASS; F=observed FAIL; N=NOT_RUN (default)').Trim().ToUpperInvariant()
+    if ($answer -notin @('P','F','N')) { $answer = 'N' }
+    $note = ''
+    if ($answer -eq 'F') {
+        $note = Read-Host 'Short non-sensitive failure note (no case facts)'
+    }
+    $results += [pscustomobject]@{
+        check = $case
+        status = @{P='PASS';F='FAIL';N='NOT_RUN'}[$answer]
+        observation = $note
+    }
+}
+$proof = [ordered]@{
+    application = 'Embasic Legal Windows TUR005 Alpha'
+    time_local = (Get-Date).ToString('o')
+    os_version = [Environment]::OSVersion.VersionString
+    exesha256 = $actualSha
+    simulated_tests = $false
+    physical_windows_acceptance = if (($results | Where-Object {$_.status -ne 'PASS'}).Count -eq 0) {'USER_REPORTED_ALL_PASS_PENDING_INDEPENDENT_REVIEW'} else {'INCOMPLETE_OR_FAIL'}
+    legal_production = 'NO-GO'
+    results = $results
+}
+$location = Join-Path $env:LOCALAPPDATA 'Embasic\Legal\UAT'
+New-Item -ItemType Directory -Force -Path $location | Out-Null
+$dest = Join-Path $location ('TUR005-UAT-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.json')
+$proof | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $dest -Encoding utf8
+Write-Host ''
+Write-Host "LOCAL USER OBSERVATIONS RECORDED: $dest"
+Write-Host 'All evidence requires independent review. Official-law and release NO-GO remain.'

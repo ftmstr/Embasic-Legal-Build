@@ -132,6 +132,23 @@
           </WrapPanel>
           <TextBlock Margin="0,0,0,10" TextWrapping="Wrap" FontSize="11"
                      Text="Parolanızı kaybederseniz kasa kurtarılamaz. Eski TUR003 düz metin notları ayrı tutulur; otomatik taşınmaz. Gizli soruşturma verisi GİRMEYİN."/>
+          <Border Margin="0,8,0,10" Padding="12" BorderThickness="1"
+                  BorderBrush="{DynamicResource BorderBrush}"
+                  Background="{DynamicResource BackgroundBrush}" CornerRadius="8">
+            <StackPanel>
+              <TextBlock FontWeight="Bold" Text="Eski notları şifreli kasaya aktar (isteğe bağlı)"/>
+              <TextBlock Margin="0,4,0,7" TextWrapping="Wrap" FontSize="11"
+                         Text="Ön inceleme salt okunurdur. Aktarım için önce kasa açık, sonra onay kutusu ve ikinci onay gerekir. Eski veritabanı/yedekler düz metin olarak kalır."/>
+              <Button Content="Eski notları ön incele" HorizontalAlignment="Left"
+                      Command="{Binding PreviewLegacyCommand}"/>
+              <CheckBox Content="Şifreli kasaya aktarmayı açıkça onaylıyorum"
+                        IsChecked="{Binding MigrationConsent, Mode=TwoWay}"/>
+              <Button Content="Onaylı aktarımı başlat" HorizontalAlignment="Left"
+                      Command="{Binding ApplyLegacyCommand}"/>
+              <TextBlock Margin="0,7,0,0" TextWrapping="Wrap"
+                         Text="{Binding MigrationStatus}"/>
+            </StackPanel>
+          </Border>
           <Border BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
                   CornerRadius="8" Padding="12" Background="{DynamicResource BackgroundBrush}">
             <StackPanel Orientation="Horizontal">
@@ -175,7 +192,7 @@
           </Popup>
           <TextBlock Margin="0,14,0,0" TextWrapping="Wrap" Text="{Binding Status}"/>
           <TextBlock Margin="0,14,0,0" TextWrapping="Wrap"
-                     Text="TUR004: Yeni not içeriği AES-256-GCM ile şifrelenir ve yedek doğrulanır; madde kimlikleri gibi üstveriler şifresizdir. TUR003 eski düz metin dosyaları korunur, silinmez. Fiziksel Windows kabulü henüz yapılmadı."/>
+                     Text="TUR005: Şifreli kasa ve kullanıcı onaylı eski not aktarımı Alpha aşamasındadır. Madde kimlikleri/üstveriler şifresizdir; eski notlar ayrıca düz metin olarak kalır. Fiziksel Windows kabulü yapılmadı."/>
         </StackPanel>
       </DataTemplate>
       <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}">
