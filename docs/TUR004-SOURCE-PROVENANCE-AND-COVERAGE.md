@@ -6,6 +6,8 @@
 - Ministry older TCK PDF candidate: https://alternatifcozumler.adalet.gov.tr/Resimler/Mevzuat/TCK%205237.pdf
 - Ministry older CMK PDF candidate: https://alternatifcozumler.adalet.gov.tr/Resimler/Mevzuat/CMK%205271.pdf
 - 7571 original act at Official Gazette: https://www.resmigazete.gov.tr/eskiler/2025/12/20251225-33.htm (25 December 2025 issue 33118).
+- UYAP sunrise/sunset feature existence is directly confirmed in the official UYAP service list: https://www.uyap.gov.tr/Hizmetler
+- An Adalet Bakanlığı courthouse site links its **Güneş Doğuş Batış Saatleri** menu directly to https://bigm-uyap.adalet.gov.tr/portal/zaman/zaman.html : https://duzce.adalet.gov.tr/ . Direct web fetch of that portal route returned a cache miss. This is a **discovered official entrypoint**, not an authenticated/redistributable schedule.
 - UYAP night chart cited in jurisprudence: https://mevzuat.adalet.gov.tr/ictihat/858039400
 
 ## What changed
