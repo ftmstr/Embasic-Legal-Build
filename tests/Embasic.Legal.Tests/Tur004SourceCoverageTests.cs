@@ -49,7 +49,9 @@ public sealed class Tur004SourceCoverageTests
             var store = new LocalPdfEvidenceStore(Path.Combine(root, "candidates"));
             var receipt = store.Import(pdf, "5237");
             Assert.Equal(PdfEvidenceStatus.ByteIntegrityOnly, store.Recheck(receipt).Status);
-            File.AppendAllText(receipt.CandidateFile, "tampered");
+            byte[] changed = File.ReadAllBytes(receipt.CandidateFile);
+            changed[^1] ^= 0x01; // Same byte count, different SHA-256.
+            File.WriteAllBytes(receipt.CandidateFile, changed);
             Assert.Throws<InvalidDataException>(() => store.Recheck(receipt));
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
