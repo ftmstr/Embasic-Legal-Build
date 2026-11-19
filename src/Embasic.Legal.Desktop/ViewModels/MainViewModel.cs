@@ -111,6 +111,11 @@ public sealed class MainViewModel : ObservableViewModel
         new("settings", "Ayarlar ve Hakkında")
     ];
     private readonly NoteSandboxViewModel _notesSandbox = new();
+    private readonly SystematicsPage _detention = new(ProceduralWorkflows.Detention, "Tutuklama");
+    private readonly SystematicsPage _supervision = new(ProceduralWorkflows.JudicialControl, "Adli Kontrol");
+    private readonly SystematicsPage _searchSeizure = new(ProceduralWorkflows.SearchSeizure, "Arama ve El Koyma");
+    public bool HasPendingSystematicData =>
+        _detention.HasReviewData || _supervision.HasReviewData || _searchSeizure.HasReviewData;
     public bool FlushNotesOnExit() => _notesSandbox.FlushPending();
     public void SecureCloseNotesOnExit() => _notesSandbox.SecureCloseOnExit();
     private object _currentPage = new DashboardViewModel();
@@ -132,9 +137,9 @@ public sealed class MainViewModel : ObservableViewModel
             "night" => new NightViewModel(),
             "laws" => new LegislationViewModel(),
             "alternatives" => new PlaceholderViewModel("Alternatif Çözümler", "Kaynaklı hukuki karar destek modülü: sonraki turlarda. Üretim NO-GO."),
-            "detention" => new PlaceholderViewModel("Tutuklama", "Doğrulanmış CMK içeriği gelene kadar otomatik karar üretilmez."),
-            "supervision" => new PlaceholderViewModel("Adli Kontrol", "Doğrulanmış mevzuat ve insan incelemesi gereklidir."),
-            "search" => new PlaceholderViewModel("Arama ve El Koyma", "Adli ve önleme araması ayrı ele alınacaktır. Modül henüz etkin değil."),
+            "detention" => _detention,
+            "supervision" => _supervision,
+            "search" => _searchSeizure,
             "notes" => _notesSandbox,
             "updates" => new PlaceholderViewModel("Güncellemeler", "Resmî kaynak edinme ve sürüm kontrolü henüz etkin değil. Ağ erişimi otomatik başlatılmaz."),
             "settings" => new PlaceholderViewModel("Ayarlar ve Hakkında", "Embasic Legal 2.0 Alpha. WPF/.NET 10. Güvenilir hukuk içeriği denetimi bekleniyor."),
