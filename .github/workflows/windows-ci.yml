@@ -49,6 +49,6 @@ jobs:
           Get-FileHash -Algorithm SHA256 $exe | Format-List | Out-File -Encoding utf8 dist/EmbasicLegal/EXE_SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Embasic-Legal-TUR003-Windows-Alpha-NOT-FINAL
+          name: Embasic-Legal-TUR004-Windows-Alpha-NOT-FINAL
           path: dist/EmbasicLegal/
           if-no-files-found: error
