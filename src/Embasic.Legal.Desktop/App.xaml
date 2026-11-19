@@ -119,6 +119,19 @@
           <TextBlock FontSize="22" FontWeight="Bold" Text="Madde Notu — WPF Deneme Alanı"/>
           <TextBlock Margin="0,10,0,14" TextWrapping="Wrap"
                      Text="SENTETİK ÖRNEK: Bu satır gerçek bir kanun maddesi değildir. Resmî mevzuat metinleri onaylanmadığı için yalnızca not baloncuğu/sticker kullanıcı deneyimi denenebilir. Gerçek soruşturma bilgisi girmeyin." />
+          <TextBlock Margin="0,2,0,7" FontWeight="Bold" Text="Şifreli kasa — en az 12 karakter parola"/>
+          <PasswordBox x:Name="VaultPassword" Width="330" Height="32" HorizontalAlignment="Left"
+                       AutomationProperties.Name="Şifreli kasa parolası (ekranda gizlenir)"/>
+          <WrapPanel Margin="0,7,0,10">
+            <Button Content="Kasayı aç / oluştur" Command="{Binding UnlockCommand}"
+                    CommandParameter="{Binding ElementName=VaultPassword}"/>
+            <Button Content="Yedeği geri yükle (kilitliyken)" Command="{Binding RestoreCommand}"
+                    CommandParameter="{Binding ElementName=VaultPassword}"/>
+            <Button Content="Kasayı kilitle" Command="{Binding LockCommand}"/>
+            <Button Content="Şifreli yedeği dışa aktar" Command="{Binding ExportBackupCommand}"/>
+          </WrapPanel>
+          <TextBlock Margin="0,0,0,10" TextWrapping="Wrap" FontSize="11"
+                     Text="Parolanızı kaybederseniz kasa kurtarılamaz. Eski TUR003 düz metin notları ayrı tutulur; otomatik taşınmaz. Gizli soruşturma verisi GİRMEYİN."/>
           <Border BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
                   CornerRadius="8" Padding="12" Background="{DynamicResource BackgroundBrush}">
             <StackPanel Orientation="Horizontal">
@@ -162,7 +175,7 @@
           </Popup>
           <TextBlock Margin="0,14,0,0" TextWrapping="Wrap" Text="{Binding Status}"/>
           <TextBlock Margin="0,14,0,0" TextWrapping="Wrap"
-                     Text="Notlar yerel SQLite veritabanına kaydedilir. Her başarılı kayıttan sonra atomik yedek denenir. Veritabanı şifreli değildir; güvenlik kabulü tamamlanmadı."/>
+                     Text="TUR004: Yeni not içeriği AES-256-GCM ile şifrelenir ve yedek doğrulanır; madde kimlikleri gibi üstveriler şifresizdir. TUR003 eski düz metin dosyaları korunur, silinmez. Fiziksel Windows kabulü henüz yapılmadı."/>
         </StackPanel>
       </DataTemplate>
       <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}">

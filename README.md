@@ -1,24 +1,22 @@
-# Embasic Legal 2.0 — Native Windows Alpha TUR003
+# Embasic Legal 2.0 — Windows Alpha TUR004
 
-A real C#/.NET 10 WPF Windows executable; not an HTML/browser launcher.
+Native .NET 10 WPF desktop EXE. **ALPHA / LEGAL PRODUCTION NO-GO**. GitHub changes remain stacked Draft PRs; no main merge or release.
 
-**ALPHA / LEGAL PRODUCTION NO-GO.** Development is in stacked Draft PRs; main remains unchanged.
+## Features
+- Exactly two date modules (year/month/day difference and shift), one unified Gece Vakti page with source-dependent fail-closed output.
+- 15-law metadata directory only; no certified official full texts or article binding.
+- Local TCK/CMK PDF *candidate* import with SHA receipt, exact-copy recheck and provisional article-page coverage auditing; none certifies law authenticity.
+- Synthetic WPF expanding note popup, 📝 sticker, autosave and password-protected AES-256-GCM text storage. Encrypted SQLite backups support authenticated restore and prior-state rollback. Passphrase required; no password recovery.
+- Legacy TUR003 plaintext file and backups are **retained untouched**, NOT automatically migrated or encrypted. Article metadata remains plaintext.
+- Original E-terazi icon and light/dark themes retained. Rights/redistribution permission is not proven.
 
-## Available
-- Only two date modules with calendar arithmetic and copy-to-clipboard.
-- Only one Gece Vakti page; no invented official UYAP sunrise/sunset times.
-- 15-law metadata directory, no verified full law articles.
-- Local 5237/5271 PDF candidate importer, with source byte hash receipt but no legal-text PASS.
-- Favoriler ve Notlar: labeled SYNTHETIC-only expandable WPF note popup, 📝 sticker, 900 ms autosave, SQLite storage and atomic integrity-checked backup. No real law article can be annotated without authenticated source/version coverage.
-- Original E-terazi images and two themes.
+## Build
+On Windows with .NET 10 SDK:
+- `dotnet restore Embasic.Legal.slnx`
+- `dotnet build Embasic.Legal.slnx -c Release`
+- `dotnet test tests/Embasic.Legal.Tests/Embasic.Legal.Tests.csproj -c Release`
+- `dotnet publish src/Embasic.Legal.Desktop/Embasic.Legal.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false`
 
-## Build on Windows
-Install .NET 10 SDK.
-dotnet restore Embasic.Legal.slnx
-dotnet build Embasic.Legal.slnx -c Release
-dotnet test tests/Embasic.Legal.Tests/Embasic.Legal.Tests.csproj -c Release
-dotnet publish src/Embasic.Legal.Desktop/Embasic.Legal.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false
+**No real investigation or confidential notes**: physical Windows UAT, crypto threat-model review, versioned official corpus, rights and dependencies remain unverified.
 
-**SQLite notes/backups are unencrypted**; do not input sensitive case data. See docs/TUR003-OFFICIAL-SOURCE-EVIDENCE.md, docs/TUR003-NOTE-AND-WINDOWS-UAT.md, docs/TUR003-LICENSE-RELEASE-GATES.md.
-
-Current GitHub LICENSE is GPL-3.0; master v2.1 requests MIT. Logo redistribution permission remains undocumented.
+Documentation: docs/TUR004-NOTE-ENCRYPTION-RESTORE.md; TUR004-SOURCE-PROVENANCE-AND-COVERAGE.md; TUR004-RELEASE-DECISIONS.md; TUR004-WINDOWS-UAT.md.

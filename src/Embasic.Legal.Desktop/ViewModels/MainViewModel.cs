@@ -77,10 +77,12 @@ public sealed class LegislationViewModel : ObservableViewModel
         if (dialog.ShowDialog() != true) return;
         try
         {
-            var result = new LocalPdfEvidenceStore(LocalPdfEvidenceStore.DefaultDirectory)
-                .Import(dialog.FileName, SelectedLaw.Number);
+            var evidence = new LocalPdfEvidenceStore(LocalPdfEvidenceStore.DefaultDirectory);
+            var result = evidence.Import(dialog.FileName, SelectedLaw.Number);
+            var verifiedSnapshot = evidence.Recheck(result);
             ReceiptStatus = $"Aday dosya kaydı: {result.LawNumber} · {result.SizeBytes} bayt · SHA-256: " +
-                result.Sha256 + "\nDurum: yalnız BAYT BÜTÜNLÜĞÜ. Resmî tamlık, madde–sayfa ve tarihsel yürürlük ONAYLANMADI.";
+                result.Sha256 + "\nMakbuz geri okuma: " + verifiedSnapshot.Status +
+                ". Yalnız BAYT BÜTÜNLÜĞÜ; resmî tamlık, madde–sayfa ve tarihsel yürürlük ONAYLANMADI.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
                                     or Microsoft.Data.Sqlite.SqliteException)
