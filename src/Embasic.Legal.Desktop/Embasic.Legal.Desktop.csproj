@@ -6,8 +6,12 @@
     <AssemblyName>Embasic.Legal</AssemblyName>
     <RootNamespace>Embasic.Legal.Desktop</RootNamespace>
     <IsPackable>false</IsPackable>
+    <ApplicationIcon>..\..\assets\Embasic_Legal_E_Terazi.ico</ApplicationIcon>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="..\..\assets\Embasic_Legal_E_Terazi_Ikon.png" Link="assets\Embasic_Legal_E_Terazi_Ikon.png" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Embasic.Legal.Core/Embasic.Legal.Core.csproj" />
   </ItemGroup>

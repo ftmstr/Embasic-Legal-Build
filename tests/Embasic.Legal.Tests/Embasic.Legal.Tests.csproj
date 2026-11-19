@@ -11,5 +11,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Embasic.Legal.Core/Embasic.Legal.Core.csproj" />
+    <ProjectReference Include="../../src/Embasic.Legal.Infrastructure/Embasic.Legal.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

@@ -8,6 +8,7 @@
       <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="Themes/Dark.xaml" />
       </ResourceDictionary.MergedDictionaries>
+      <BitmapImage x:Key="EmbasicLogo" UriSource="pack://application:,,,/assets/Embasic_Legal_E_Terazi_Ikon.png" />
       <Style TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
       </Style>
@@ -60,7 +61,7 @@
             </StackPanel>
             <CheckBox Content="Belirli tarihe uygula (işaretli değilse olay tarihine)" IsChecked="{Binding ApplyToReference}"/>
             <CheckBox Content="Ekle yerine çıkar" IsChecked="{Binding Subtract}"/>
-            <Button Width="135" HorizontalAlignment="Left" Content="Hesapla" Command="{Binding CalculateCommand}"/>
+            <StackPanel Orientation="Horizontal"><Button Width="135" Content="Hesapla" Command="{Binding CalculateCommand}"/><Button Width="135" Content="Sonucu kopyala" Command="{Binding CopyCommand}"/></StackPanel>
             <TextBlock Margin="0,20,0,0" TextWrapping="Wrap" FontSize="15" Text="{Binding Result}"/>
             <TextBlock Margin="0,15,0,0" TextWrapping="Wrap" Text="Takvimsel hesap. Kanuni süre veya lehe kanun değerlendirmesi değildir."/>
           </StackPanel>

@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="src/Embasic.Legal.Core/Embasic.Legal.Core.csproj" />
   <Project Path="src/Embasic.Legal.Desktop/Embasic.Legal.Desktop.csproj" />
+  <Project Path="src/Embasic.Legal.Infrastructure/Embasic.Legal.Infrastructure.csproj" />
   <Project Path="tests/Embasic.Legal.Tests/Embasic.Legal.Tests.csproj" />
 </Solution>

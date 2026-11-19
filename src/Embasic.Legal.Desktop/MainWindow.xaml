@@ -14,7 +14,10 @@
             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="14">
         <StackPanel DockPanel.Dock="Top" Margin="0,8,0,16">
-          <TextBlock Text="⚖ EMBASIC LEGAL" FontSize="22" FontWeight="Bold"/>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Image Source="{StaticResource EmbasicLogo}" Width="55" Height="55" Stretch="Uniform" Margin="0,0,8,0" AutomationProperties.Name="Embasic Legal E-terazi logosu"/>
+            <TextBlock Text="EMBASIC LEGAL" VerticalAlignment="Center" FontSize="18" FontWeight="Bold"/>
+          </StackPanel>
           <TextBlock Text="Windows Alpha · kaynak doğrulaması bekliyor" Margin="0,7,0,0" TextWrapping="Wrap"/>
         </StackPanel>
         <ScrollViewer VerticalScrollBarVisibility="Auto">

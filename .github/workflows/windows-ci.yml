@@ -25,6 +25,13 @@ jobs:
         run: dotnet test tests/Embasic.Legal.Tests/Embasic.Legal.Tests.csproj -c Release --no-restore --logger trx
       - name: Publish Windows standalone alpha
         run: dotnet publish src/Embasic.Legal.Desktop/Embasic.Legal.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -o dist/EmbasicLegal
+      - name: Source asset and legal source status
+        shell: pwsh
+        run: |
+          if (-not (Test-Path assets/Embasic_Legal_E_Terazi.ico)) { throw "ICO missing" }
+          if (-not (Test-Path assets/Embasic_Legal_E_Terazi_Ikon.png)) { throw "PNG missing" }
+          if (-not (Test-Path assets/LOGO-PROVENANCE-TUR002.md)) { throw "Provenance record missing" }
+          Get-FileHash -Algorithm SHA256 assets/Embasic_Legal_E_Terazi.ico,assets/Embasic_Legal_E_Terazi_Ikon.png | Format-Table
       - name: SHA-256 evidence
         shell: pwsh
         run: |
@@ -33,6 +40,6 @@ jobs:
           Get-FileHash -Algorithm SHA256 $exe | Format-List | Out-File -Encoding utf8 dist/EmbasicLegal/EXE_SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Embasic-Legal-TUR001-Windows-Alpha-NOT-FINAL
+          name: Embasic-Legal-TUR002-Windows-Alpha-NOT-FINAL
           path: dist/EmbasicLegal/
           if-no-files-found: error
