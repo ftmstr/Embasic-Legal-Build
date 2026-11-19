@@ -117,8 +117,18 @@ public sealed class DateShiftViewModel : ObservableViewModel
     private string _result = "Başlangıç tarihini ve süreyi giriniz.";
     public string Result { get => _result; private set { _result = value; Changed(); } }
     public ICommand CalculateCommand { get; }
+    public ICommand CopyCommand { get; }
 
-    public DateShiftViewModel() => CalculateCommand = new RelayCommand(_ => Calculate());
+    public DateShiftViewModel()
+    {
+        CalculateCommand = new RelayCommand(_ => Calculate());
+        CopyCommand = new RelayCommand(_ => Copy());
+    }
+    private void Copy()
+    {
+        try { System.Windows.Clipboard.SetText(Result); }
+        catch (System.Runtime.InteropServices.ExternalException) { Result = "Panoya kopyalama başarısız."; }
+    }
     private void Calculate()
     {
         try
@@ -148,7 +158,17 @@ public sealed class DateRangeViewModel : ObservableViewModel
     private string _result = "Olay ve belirli tarihleri giriniz.";
     public string Result { get => _result; private set { _result = value; Changed(); } }
     public ICommand CalculateCommand { get; }
-    public DateRangeViewModel() => CalculateCommand = new RelayCommand(_ => Calculate());
+    public ICommand CopyCommand { get; }
+    public DateRangeViewModel()
+    {
+        CalculateCommand = new RelayCommand(_ => Calculate());
+        CopyCommand = new RelayCommand(_ => Copy());
+    }
+    private void Copy()
+    {
+        try { System.Windows.Clipboard.SetText(Result); }
+        catch (System.Runtime.InteropServices.ExternalException) { Result = "Panoya kopyalama başarısız."; }
+    }
 
     private void Calculate()
     {
