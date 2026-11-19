@@ -83,7 +83,7 @@ public sealed class EncryptedArticleNotes : IDisposable
     {
         EnsureOpen();
         ValidateUserKey(key);
-        if (string.IsNullOrWhiteSpace(text) || text.Length > 60_000)
+        if (string.IsNullOrWhiteSpace(text) || Encoding.UTF8.GetByteCount(text) > 50_000)
             throw new ArgumentException("Not boş veya çok uzun.", nameof(text));
         string cipher = Encrypt(text, key, _encryptionKey);
         return _store.Save(key, cipher) with { Text = text };
@@ -101,6 +101,33 @@ public sealed class EncryptedArticleNotes : IDisposable
     }
 
     public bool HasNote(ArticleNoteKey key) => Get(key) is not null;
+
+    /// <summary>
+    /// All-or-nothing, no overwrite. Only explicit legacy migration calls this method.
+    /// </summary>
+    public void ImportNewNotesAtomically(IReadOnlyList<ArticleNote> legacyNotes)
+    {
+        EnsureOpen();
+        ArgumentNullException.ThrowIfNull(legacyNotes);
+        if (legacyNotes.Count is < 1 or > 1000)
+            throw new ArgumentException("Not aktarımı 1 ile 1000 kayıt arasında olmalıdır.");
+        var keys = new HashSet<ArticleNoteKey>();
+        var encrypted = new List<ArticleNote>(legacyNotes.Count);
+        foreach (var old in legacyNotes)
+        {
+            ValidateUserKey(old.Key);
+            if (!keys.Add(old.Key))
+                throw new InvalidDataException("Tekrarlanan madde ve sürüm kimliği.");
+            if (string.IsNullOrWhiteSpace(old.Text) ||
+                Encoding.UTF8.GetByteCount(old.Text) > 50_000)
+                throw new InvalidDataException("Aktarım içeriği boş veya 50 KB üstünde.");
+            if (HasNote(old.Key))
+                throw new InvalidOperationException("Hedef kasada aynı kimlikte not var; üzerine yazma yasak.");
+            encrypted.Add(old with { Text = Encrypt(old.Text, old.Key, _encryptionKey) });
+        }
+        // Each INSERT runs under one transaction, with zero upsert/overwrite behavior.
+        _store.InsertUnchangedBatch(encrypted);
+    }
 
     public bool Delete(ArticleNoteKey key)
     {

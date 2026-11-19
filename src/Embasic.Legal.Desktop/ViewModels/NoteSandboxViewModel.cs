@@ -20,6 +20,10 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         new("SANDBOX", "SYNTHETIC-ARTICLE", "", "TUR003-EXPLICIT-DEMO");
     private readonly DispatcherTimer _debounce;
     private EncryptedArticleNotes? _store;
+    private LegacyMigrationPreview? _migrationPreview;
+    private bool _migrationConsent;
+    private string _migrationStatus =
+        "Eski düz metin notları otomatik aktarılmaz. Şifreli kasa açıldıktan sonra ön inceleme yapın.";
     private bool _dirty;
     private bool _hasNote;
     private bool _isOpen;
@@ -39,6 +43,8 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         RestoreCommand = new RelayCommand(parameter => Restore(parameter as PasswordBox));
         LockCommand = new RelayCommand(_ => Lock());
         ExportBackupCommand = new RelayCommand(_ => ExportBackup());
+        PreviewLegacyCommand = new RelayCommand(_ => PreviewLegacy());
+        ApplyLegacyCommand = new RelayCommand(_ => ApplyLegacy());
 
         _debounce = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -80,6 +86,18 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
     public ICommand RestoreCommand { get; }
     public ICommand LockCommand { get; }
     public ICommand ExportBackupCommand { get; }
+    public ICommand PreviewLegacyCommand { get; }
+    public ICommand ApplyLegacyCommand { get; }
+    public bool MigrationConsent
+    {
+        get => _migrationConsent;
+        set { _migrationConsent = value; Changed(); }
+    }
+    public string MigrationStatus
+    {
+        get => _migrationStatus;
+        private set { _migrationStatus = value; Changed(); }
+    }
 
     private void Unlock(PasswordBox? input)
     {
@@ -167,6 +185,90 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         }
     }
 
+
+    private void PreviewLegacy()
+    {
+        MigrationConsent = false;
+        _migrationPreview = null;
+        if (_store is null)
+        {
+            MigrationStatus = "Ön inceleme için önce şifreli kasayı açın.";
+            return;
+        }
+        if (!FlushPending())
+        {
+            MigrationStatus = "Kaydedilmemiş sentetik taslak var; ön inceleme yapılmadı.";
+            return;
+        }
+        try
+        {
+            var preview = LegacyNoteMigration.Preview(ArticleNoteStore.DefaultDatabasePath);
+            _migrationPreview = preview;
+            MigrationStatus = $"Salt-okunur ön inceleme: {preview.NoteCount} not, " +
+                $"{preview.TotalUtf8Bytes} UTF-8 bayt. SHA-256: {preview.SourceSha256}. " +
+                "Henüz aktarım yapılmadı. Eski dosya/yedekler şifresiz kalacaktır.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or SqliteException or ArgumentException or FormatException)
+        {
+            MigrationStatus = "Ön inceleme reddedildi: " + ex.Message;
+        }
+    }
+
+    private void ApplyLegacy()
+    {
+        if (_store is null || _migrationPreview is null || !MigrationConsent)
+        {
+            MigrationStatus = "Kasa açık, ön inceleme tamamlanmış ve açık onay kutusu işaretli olmalıdır.";
+            return;
+        }
+        if (!FlushPending())
+        {
+            MigrationStatus = "Kaydedilmemiş taslak var; aktarım yapılmadı.";
+            return;
+        }
+        var answer = MessageBox.Show(
+            $"Eski şifresiz kaynaktaki {_migrationPreview.NoteCount} not şifreli kasaya aktarılacak. " +
+            "Eski dosya ve yedekler ŞİFRESİZ olarak kalacak, otomatik silinmeyecek. " +
+            "Mevcut notun üzerine yazılmayacak. Önce geri alma yedeği alınacak. " +
+            "Bu işlemi açıkça onaylıyor musunuz?",
+            "Embasic Legal — Onaylı Veri Aktarımı",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes)
+        {
+            MigrationConsent = false;
+            MigrationStatus = "Kullanıcı onay vermedi; hiçbir not aktarılmadı.";
+            return;
+        }
+        try
+        {
+            string backup = EncryptedArticleNotes.DefaultDatabasePath +
+                ".pre-migration-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss") +
+                "-" + Guid.NewGuid().ToString("N") + ".sqlite3";
+            var result = LegacyNoteMigration.Apply(_migrationPreview, _store, true, backup);
+            var sample = _store.Get(_key);
+            _draft = sample?.Text ?? "";
+            _dirty = false;
+            Changed(nameof(Draft));
+            HasNote = sample is not null;
+            MigrationStatus = $"Şifreli aktarım tamamlandı: {result.ImportedNotes} not. " +
+                $"Geri alma yedeği: {result.EncryptedPreMigrationBackup}. " +
+                "Eski düz metin notlar ve yedekler silinmedi.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or SqliteException or ArgumentException or FormatException
+            or InvalidOperationException or CryptographicException)
+        {
+            MigrationStatus = "Aktarım onaylanmadı veya başarısız: " + ex.Message +
+                " Eski kaynak korunur. Varsa geri alma yedeğini saklayın.";
+        }
+        finally
+        {
+            MigrationConsent = false;
+            _migrationPreview = null;
+        }
+    }
+
     private void Toggle()
     {
         if (IsOpen) Close();
@@ -251,6 +353,8 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
     {
         if (!FlushPending()) { Status = "Kaydedilmemiş değişiklik var; kasa kilitlenmedi."; return; }
         _debounce.Stop();
+        _migrationPreview = null;
+        MigrationConsent = false;
         IsOpen = false;
         _store?.Dispose();
         _store = null;
@@ -261,4 +365,16 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
     }
 
     public bool FlushPending() => !_dirty || Save();
+
+    public void SecureCloseOnExit()
+    {
+        _debounce.Stop();
+        _migrationPreview = null;
+        MigrationConsent = false;
+        _store?.Dispose();
+        _store = null;
+        _draft = "";
+        Changed(nameof(Draft));
+        HasNote = false;
+    }
 }
