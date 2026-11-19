@@ -113,6 +113,9 @@ public sealed class LocalPdfEvidenceStore
         byte[] data = File.ReadAllBytes(expectedCandidate);
         if (data.LongLength != receipt.SizeBytes)
             throw new InvalidDataException("Aday dosya boyutu değişti.");
-        return OfficialSourceGate.Inspect(data, receipt.Sha256);
+        PdfEvidenceResult verified = OfficialSourceGate.Inspect(data, receipt.Sha256);
+        if (verified.Status != PdfEvidenceStatus.ByteIntegrityOnly)
+            throw new InvalidDataException("Makbuz ve yerel PDF baytları eşleşmiyor; aday kaynak reddedildi.");
+        return verified;
     }
 }
