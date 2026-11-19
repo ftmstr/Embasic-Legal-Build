@@ -83,7 +83,7 @@ public sealed class EncryptedArticleNotes : IDisposable
     {
         EnsureOpen();
         ValidateUserKey(key);
-        if (string.IsNullOrWhiteSpace(text) || text.Length > 100_000)
+        if (string.IsNullOrWhiteSpace(text) || text.Length > 60_000)
             throw new ArgumentException("Not boş veya çok uzun.", nameof(text));
         string cipher = Encrypt(text, key, _encryptionKey);
         return _store.Save(key, cipher) with { Text = text };

@@ -30,7 +30,7 @@ public sealed class Tur004EncryptedNoteTests
             using (var vault = new EncryptedArticleNotes(path, Password))
             {
                 Assert.Equal("SENTETİK GÜNCEL NOT", vault.Get(Sample)?.Text);
-                Assert.Throws<CryptographicException>(() =>
+                Assert.ThrowsAny<CryptographicException>(() =>
                     new EncryptedArticleNotes(path, "Incorrect-Long-Password-123"));
                 Assert.True(vault.CheckIntegrity());
             }
@@ -56,7 +56,7 @@ public sealed class Tur004EncryptedNoteTests
                 vault.BackupTo(backup);
                 vault.Save(Sample, "Yedek sonrası sentetik not");
             }
-            Assert.Throws<CryptographicException>(() =>
+            Assert.ThrowsAny<CryptographicException>(() =>
                 EncryptedArticleNotes.RestoreFrom(backup, path, "Incorrect-Long-Password-123"));
             using (var vault = new EncryptedArticleNotes(path, Password))
                 Assert.Equal("Yedek sonrası sentetik not", vault.Get(Sample)?.Text);

@@ -17,6 +17,35 @@ public sealed record PdfCandidateReceipt(
     public bool OfficialFullTextVerified => false;
     public bool ArticlePageMappingVerified => false;
     public bool TemporalApplicabilityVerified => false;
+    /// <summary>
+    /// Revalidates candidate snapshot, receipt identity and exact bytes.
+    /// A passing result is NOT provider authentication or complete law text.
+    /// </summary>
+    public PdfEvidenceResult Recheck(PdfCandidateReceipt receipt)
+    {
+        if (receipt.LawNumber is not ("5237" or "5271") ||
+            receipt.Sha256.Length != 64 || !receipt.Sha256.All(Uri.IsHexDigit))
+            throw new InvalidDataException("Makbuzun kanun veya hash kimliği geçersiz.");
+        string directory = Path.Combine(_root, receipt.LawNumber);
+        string expectedCandidate = Path.Combine(directory, receipt.Sha256.ToLowerInvariant() + ".pdf");
+        string expectedReceipt = Path.Combine(directory, receipt.Sha256.ToLowerInvariant() + ".receipt.json");
+        if (!Path.GetFullPath(receipt.CandidateFile).Equals(expectedCandidate,
+                StringComparison.OrdinalIgnoreCase) ||
+            !Path.GetFullPath(receipt.ReceiptFile).Equals(expectedReceipt,
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Makbuz dizin dışına yönlendirilemez.");
+        if (!File.Exists(expectedCandidate) || !File.Exists(expectedReceipt))
+            throw new FileNotFoundException("Aday PDF veya JSON makbuzu bulunamadı.");
+        string raw = File.ReadAllText(expectedReceipt);
+        var stored = JsonSerializer.Deserialize<PdfCandidateReceipt>(raw) ??
+            throw new InvalidDataException("Makbuz JSON bozuk.");
+        if (stored != receipt)
+            throw new InvalidDataException("Makbuz kayıtları farklı.");
+        byte[] data = File.ReadAllBytes(expectedCandidate);
+        if (data.LongLength != receipt.SizeBytes)
+            throw new InvalidDataException("Aday dosya boyutu değişti.");
+        return OfficialSourceGate.Inspect(data, receipt.Sha256);
+    }
 }
 
 public sealed class LocalPdfEvidenceStore
