@@ -27,8 +27,8 @@ public sealed record LawRow(string Number, string Title)
 {
     public string DisplayName => Number + " — " + Title + "  [METİN DOĞRULANMADI]";
 }
-public sealed class DashboardViewModel;
-public sealed class CalculatorHubViewModel;
+public sealed class DashboardViewModel { }
+public sealed class CalculatorHubViewModel { }
 public sealed record PlaceholderViewModel(string Title, string Message);
 
 public sealed class LegislationViewModel
