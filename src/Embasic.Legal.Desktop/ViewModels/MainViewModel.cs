@@ -6,6 +6,8 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Embasic.Legal.Core;
+using Embasic.Legal.Infrastructure;
+using Microsoft.Win32;
 
 namespace Embasic.Legal.Desktop.ViewModels;
 
@@ -32,11 +34,59 @@ public sealed class DashboardViewModel { }
 public sealed class CalculatorHubViewModel { }
 public sealed record PlaceholderViewModel(string Title, string Message);
 
-public sealed class LegislationViewModel
+public sealed class LegislationViewModel : ObservableViewModel
 {
     public IReadOnlyList<LawRow> Laws { get; } =
         [.. System.Linq.Enumerable.Select(LegislationCatalog.InitialDirectory,
             law => new LawRow(law.Number, law.Title))];
+
+    private LawRow? _selectedLaw;
+    public LawRow? SelectedLaw { get => _selectedLaw; set { _selectedLaw = value; Changed(); } }
+    private string _receiptStatus =
+        "Aday PDF alınmadı. Kaynak dizini resmî tam metin değildir; madde notları kapalıdır.";
+    public string ReceiptStatus
+    {
+        get => _receiptStatus;
+        private set { _receiptStatus = value; Changed(); }
+    }
+
+    public ICommand ImportPdfCommand { get; }
+    public LegislationViewModel() =>
+        ImportPdfCommand = new RelayCommand(_ => ImportCandidate());
+
+    private void ImportCandidate()
+    {
+        if (SelectedLaw is null)
+        {
+            ReceiptStatus = "Önce bir mevzuat seçin (bu turda yalnız 5237 veya 5271).";
+            return;
+        }
+        if (SelectedLaw.Number is not ("5237" or "5271"))
+        {
+            ReceiptStatus = "Diğer düzenlemelerin kaynak kabulü henüz açılmadı.";
+            return;
+        }
+        var dialog = new OpenFileDialog
+        {
+            Title = "Resmî kaynak olduğu iddia edilen PDF adayını seç (yalnız yerel kanıt kaydı)",
+            Filter = "PDF belgeleri (*.pdf)|*.pdf",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            var result = new LocalPdfEvidenceStore(LocalPdfEvidenceStore.DefaultDirectory)
+                .Import(dialog.FileName, SelectedLaw.Number);
+            ReceiptStatus = $"Aday dosya kaydı: {result.LawNumber} · {result.SizeBytes} bayt · SHA-256: " +
+                result.Sha256 + "\nDurum: yalnız BAYT BÜTÜNLÜĞÜ. Resmî tamlık, madde–sayfa ve tarihsel yürürlük ONAYLANMADI.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+                                    or Microsoft.Data.Sqlite.SqliteException)
+        {
+            ReceiptStatus = "Kaynak adayı güvenle alınamadı: " + ex.Message;
+        }
+    }
 }
 
 public sealed class MainViewModel : ObservableViewModel
@@ -57,6 +107,8 @@ public sealed class MainViewModel : ObservableViewModel
         new("updates", "Güncellemeler"),
         new("settings", "Ayarlar ve Hakkında")
     ];
+    private readonly NoteSandboxViewModel _notesSandbox = new();
+    public bool FlushNotesOnExit() => _notesSandbox.FlushPending();
     private object _currentPage = new DashboardViewModel();
     private string _currentTitle = "Ana Sayfa";
     public object CurrentPage { get => _currentPage; private set { _currentPage = value; Changed(); } }
@@ -79,7 +131,7 @@ public sealed class MainViewModel : ObservableViewModel
             "detention" => new PlaceholderViewModel("Tutuklama", "Doğrulanmış CMK içeriği gelene kadar otomatik karar üretilmez."),
             "supervision" => new PlaceholderViewModel("Adli Kontrol", "Doğrulanmış mevzuat ve insan incelemesi gereklidir."),
             "search" => new PlaceholderViewModel("Arama ve El Koyma", "Adli ve önleme araması ayrı ele alınacaktır. Modül henüz etkin değil."),
-            "notes" => new PlaceholderViewModel("Favoriler ve Notlar", "Madde notu baloncuğu ve sticker altyapısı TUR 001 kapsamı dışında; planlandı."),
+            "notes" => _notesSandbox,
             "updates" => new PlaceholderViewModel("Güncellemeler", "Resmî kaynak edinme ve sürüm kontrolü henüz etkin değil. Ağ erişimi otomatik başlatılmaz."),
             "settings" => new PlaceholderViewModel("Ayarlar ve Hakkında", "Embasic Legal 2.0 Alpha. WPF/.NET 10. Güvenilir hukuk içeriği denetimi bekleniyor."),
             _ => new DashboardViewModel()

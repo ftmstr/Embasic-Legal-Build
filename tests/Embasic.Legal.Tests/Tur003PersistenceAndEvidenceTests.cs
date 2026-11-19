@@ -25,12 +25,16 @@ public sealed class Tur003PersistenceAndEvidenceTests
                 store.Save(key, "İkinci not");
                 Assert.Throws<ArgumentException>(() => store.BackupTo(db));
             }
-            using var backup = new ArticleNoteStore(snapshot);
-            Assert.Equal("İlk not, Türkçe", backup.Get(key)?.Text);
-            using var current = new ArticleNoteStore(db);
-            Assert.Equal("İkinci not", current.Get(key)?.Text);
-            Assert.True(backup.CheckIntegrity());
-            Assert.True(current.CheckIntegrity());
+            using (var backup = new ArticleNoteStore(snapshot))
+            {
+                Assert.Equal("İlk not, Türkçe", backup.Get(key)?.Text);
+                Assert.True(backup.CheckIntegrity());
+            }
+            using (var current = new ArticleNoteStore(db))
+            {
+                Assert.Equal("İkinci not", current.Get(key)?.Text);
+                Assert.True(current.CheckIntegrity());
+            }
         }
         finally { Directory.Delete(dir, recursive: true); }
     }

@@ -9,6 +9,7 @@
         <ResourceDictionary Source="Themes/Dark.xaml" />
       </ResourceDictionary.MergedDictionaries>
       <BitmapImage x:Key="EmbasicLogo" UriSource="pack://application:,,,/assets/Embasic_Legal_E_Terazi_Ikon.png" />
+      <BooleanToVisibilityConverter x:Key="BooleanVisibility" />
       <Style TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
       </Style>
@@ -103,7 +104,65 @@
         <StackPanel>
           <TextBlock FontSize="21" FontWeight="Bold" Text="Mevzuat — Kaynak Dizini"/>
           <TextBlock Margin="0,10,0,14" TextWrapping="Wrap" Text="15 düzenleme yalnızca ad ve numara olarak kaydedilmiştir. Resmî tam metin doğrulanmadı. Madde araması/not baloncuğu sonraki turda geliştirilecektir."/>
-          <ListBox Height="350" Width="720" HorizontalAlignment="Left" ItemsSource="{Binding Laws}" DisplayMemberPath="DisplayName"/>
+          <ListBox Height="260" Width="720" HorizontalAlignment="Left" ItemsSource="{Binding Laws}"
+                   SelectedItem="{Binding SelectedLaw, Mode=TwoWay}" DisplayMemberPath="DisplayName"/>
+          <TextBlock Margin="0,10,0,4" TextWrapping="Wrap"
+                     Text="Resmî madde metni doğrulanmadı: hiçbir maddeye gerçek mevzuat etiketiyle not bağlanmaz." />
+          <Button Width="265" HorizontalAlignment="Left" Content="Yerel PDF adayı ekle (5237/5271)"
+                  Command="{Binding ImportPdfCommand}"/>
+          <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Text="{Binding ReceiptStatus}" />
+
+        </StackPanel>
+      </DataTemplate>
+      <DataTemplate DataType="{x:Type vm:NoteSandboxViewModel}">
+        <StackPanel MaxWidth="750" HorizontalAlignment="Left">
+          <TextBlock FontSize="22" FontWeight="Bold" Text="Madde Notu — WPF Deneme Alanı"/>
+          <TextBlock Margin="0,10,0,14" TextWrapping="Wrap"
+                     Text="SENTETİK ÖRNEK: Bu satır gerçek bir kanun maddesi değildir. Resmî mevzuat metinleri onaylanmadığı için yalnızca not baloncuğu/sticker kullanıcı deneyimi denenebilir. Gerçek soruşturma bilgisi girmeyin." />
+          <Border BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
+                  CornerRadius="8" Padding="12" Background="{DynamicResource BackgroundBrush}">
+            <StackPanel Orientation="Horizontal">
+              <Button x:Name="ExampleArticleButton" Content="ÖRNEK MADDE — not baloncuğunu aç"
+                      Command="{Binding ToggleCommand}" ToolTip="Sentetik not örneğini aç/kapat"/>
+              <TextBlock Text="📝" Margin="6,3,0,0" FontSize="19"
+                         ToolTip="Bu örnek maddede kayıtlı not var"
+                         AutomationProperties.Name="Bu örnek maddede not var"
+                         Visibility="{Binding HasNote, Converter={StaticResource BooleanVisibility}}"/>
+            </StackPanel>
+          </Border>
+          <Popup IsOpen="{Binding IsOpen, Mode=TwoWay}"
+                 PlacementTarget="{Binding ElementName=ExampleArticleButton}"
+                 Placement="Bottom" StaysOpen="True" AllowsTransparency="True"
+                 PopupAnimation="Fade">
+            <Border Width="{Binding EditorWidth}" Height="{Binding EditorHeight}" Padding="12"
+                    CornerRadius="10" BorderThickness="2"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    Background="{DynamicResource SurfaceBrush}">
+              <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Top">
+                  <TextBlock FontWeight="Bold" FontSize="16" Text="📝 Sentetik madde notu"/>
+                  <TextBlock Margin="0,5,0,7" FontSize="11" TextWrapping="Wrap"
+                             Text="Yalnız arayüz testi — gerçek kanun maddesi veya gizli dosya değil."/>
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                  <WrapPanel>
+                    <Button Content="Kaydet" Command="{Binding SaveCommand}"/>
+                    <Button Content="Genişlet / Küçült" Command="{Binding ExpandCommand}"/>
+                    <Button Content="Sil" Command="{Binding DeleteCommand}"/>
+                    <Button Content="Kapat" Command="{Binding CloseCommand}"/>
+                  </WrapPanel>
+                  <TextBlock Margin="0,3,0,0" FontSize="11" TextWrapping="Wrap" Text="{Binding Status}"/>
+                </StackPanel>
+                <TextBox Text="{Binding Draft, UpdateSourceTrigger=PropertyChanged}"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         AutomationProperties.Name="Madde notu yazma alanı" />
+              </DockPanel>
+            </Border>
+          </Popup>
+          <TextBlock Margin="0,14,0,0" TextWrapping="Wrap" Text="{Binding Status}"/>
+          <TextBlock Margin="0,14,0,0" TextWrapping="Wrap"
+                     Text="Notlar yerel SQLite veritabanına kaydedilir. Her başarılı kayıttan sonra atomik yedek denenir. Veritabanı şifreli değildir; güvenlik kabulü tamamlanmadı."/>
         </StackPanel>
       </DataTemplate>
       <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}">
