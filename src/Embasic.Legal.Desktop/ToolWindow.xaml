@@ -4,7 +4,7 @@
         Width="650" Height="650" MinWidth="520" MinHeight="480"
         Background="{DynamicResource BackgroundBrush}"
         Foreground="{DynamicResource TextBrush}">
-  <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18">
+  <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="18">
     <Border Background="{DynamicResource SurfaceBrush}" Padding="20"
             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
             CornerRadius="10">
