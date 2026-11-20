@@ -139,13 +139,69 @@ public sealed class EncryptedArticleNotes : IDisposable
     public bool CheckIntegrity()
     {
         EnsureOpen();
-        return _store.CheckIntegrity();
+        return AuthenticateStore(_store);
     }
 
+    private bool AuthenticateStore(ArticleNoteStore store)
+    {
+        try
+        {
+            if (!store.CheckIntegrity()) return false;
+            int saltCount = 0, sentinelCount = 0;
+            store.InspectAllRows(row =>
+            {
+                if (row.Key == SaltKey)
+                {
+                    if (++saltCount != 1 ||
+                        !string.Equals(row.Text, Convert.ToBase64String(_salt),
+                            StringComparison.Ordinal))
+                        throw new InvalidDataException("Kasa salt üstverisi değişmiş.");
+                }
+                else if (row.Key == CheckKey)
+                {
+                    if (++sentinelCount != 1 ||
+                        !string.Equals(Decrypt(row.Text, CheckKey, _encryptionKey),
+                            Sentinel, StringComparison.Ordinal))
+                        throw new CryptographicException("Kasa doğrulama sentinel hatası.");
+                }
+                else
+                {
+                    ValidateUserKey(row.Key);
+                    string value = Decrypt(row.Text, row.Key, _encryptionKey);
+                    if (string.IsNullOrWhiteSpace(value) ||
+                        Encoding.UTF8.GetByteCount(value) > 50_000)
+                        throw new InvalidDataException("Kasa şifreli notunun içerik sınırı geçersiz.");
+                }
+            });
+            return saltCount == 1 && sentinelCount == 1;
+        }
+        catch (Exception ex) when (ex is CryptographicException or InvalidDataException
+            or FormatException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Refuse to create or overwrite a backup when any encrypted note fails
+    /// authentication. After the SQLite online backup, independently open and
+    /// authenticate the snapshot before reporting success. Preserve the prior
+    /// backup on failed source verification.
+    /// </summary>
     public string BackupTo(string path)
     {
         EnsureOpen();
-        return _store.BackupTo(path);
+        if (!CheckIntegrity())
+            throw new InvalidDataException("Kasa şifreli içerik doğrulaması başarısız; yedek reddedildi.");
+        // The store itself creates a temporary snapshot and atomically moves
+        // it only after structural verification.
+        string backup = _store.BackupTo(path);
+        // Authenticated snapshot audit reuses the unlocked vault key without
+        // ever reconstructing a passphrase or exposing it to the filesystem.
+        using var snapshotStore = new ArticleNoteStore(backup);
+        if (!AuthenticateStore(snapshotStore))
+            throw new InvalidDataException("Yedek şifreli içerik doğrulaması başarısız.");
+        return backup;
     }
 
     /// <summary>
@@ -165,7 +221,8 @@ public sealed class EncryptedArticleNotes : IDisposable
         byte[] originalSalt;
         using (var old = new EncryptedArticleNotes(backup, passphrase))
         {
-            if (!old.CheckIntegrity()) throw new InvalidDataException("Yedek SQLite bütünlüğü geçersiz.");
+            if (!old.CheckIntegrity())
+                throw new InvalidDataException("Yedek şifreli notlardan biri veya SQLite yapısı bozuk; geri yükleme reddedildi.");
             originalSalt = (byte[])old._salt.Clone();
         }
 
@@ -173,6 +230,8 @@ public sealed class EncryptedArticleNotes : IDisposable
         if (File.Exists(target))
         {
             using var present = new EncryptedArticleNotes(target, passphrase);
+            if (!present.CheckIntegrity())
+                throw new InvalidDataException("Mevcut kasada bozuk şifreli not var; geri yüklemeden önce insan incelemesi gerekli.");
             if (!present._salt.AsSpan().SequenceEqual(originalSalt))
                 throw new InvalidDataException("Yedek başka bir kasaya aittir; üzerine yazma reddedildi.");
         }
