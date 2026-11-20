@@ -44,13 +44,13 @@ jobs:
       - name: Package manual offline Windows UAT collector
         shell: pwsh
         run: |
-          Copy-Item -LiteralPath 'tools/TUR008-Windows-UAT.ps1' -Destination 'dist/EmbasicLegal/TUR008-Windows-UAT.ps1'
+          Copy-Item -LiteralPath 'tools/TUR009-Windows-UAT.ps1' -Destination 'dist/EmbasicLegal/TUR009-Windows-UAT.ps1'
       - name: Static WPF and UAT syntax checks (NOT a physical GUI test)
         shell: pwsh
         run: |
           $parseErrors = $null
           $tokens = $null
-          [System.Management.Automation.Language.Parser]::ParseFile('tools/TUR008-Windows-UAT.ps1',[ref]$tokens,[ref]$parseErrors) | Out-Null
+          [System.Management.Automation.Language.Parser]::ParseFile('tools/TUR009-Windows-UAT.ps1',[ref]$tokens,[ref]$parseErrors) | Out-Null
           if ($parseErrors.Count -gt 0) { throw "PowerShell parser rejected UAT: $($parseErrors.Count)" }
           [xml]$screen = Get-Content 'src/Embasic.Legal.Desktop/App.xaml' -Raw
           $raw = $screen.OuterXml
@@ -58,6 +58,29 @@ jobs:
             if (-not $raw.Contains($marker)) { throw "WPF source marker absent: $marker" }
           }
           Write-Host 'Static UI and UAT parser gates PASS; physical GUI test NOT_RUN.'
+      - name: Hash-covered CI build provenance (unsigned metadata, not an approval)
+        shell: pwsh
+        run: |
+          $head = '${{ github.event.pull_request.head.sha }}'
+          if (-not $head) { $head = '${{ github.sha }}' }
+          if ($head -notmatch '^[a-f0-9]{40}$') { throw 'No valid GitHub source head SHA.' }
+          $record = [ordered]@{
+            product = 'Embasic Legal Windows TUR009 Alpha'
+            repository = 'ftmstr/Embasic-Legal-Build'
+            git_head_sha = $head
+            checkout_sha = (git rev-parse HEAD).Trim()
+            github_run_id = $env:GITHUB_RUN_ID
+            built_utc = (Get-Date).ToUniversalTime().ToString('o')
+            legal_production = 'NO-GO'
+            physical_windows_uat = 'NOT_RUN'
+            official_legal_corpus = 'NOT_VERIFIED'
+            official_court_originals = 'NOT_VERIFIED'
+            E_terazi_redistribution = 'NOT_VERIFIED'
+            GPLv3_MIT_license_resolution = 'NO-GO'
+            evidence_grade = 'CI_UNSIGNED_HASHED_METADATA_NOT_PHYSICAL_ACCEPTANCE'
+          }
+          $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath 'dist/EmbasicLegal/BUILD_PROVENANCE.json' -Encoding utf8
+          Write-Host "TUR009 provenance created from GitHub head: $head"
       - name: SHA-256 evidence
         shell: pwsh
         run: |
@@ -71,6 +94,6 @@ jobs:
             } | Set-Content -Encoding utf8 dist/EmbasicLegal/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Embasic-Legal-TUR008-Windows-Alpha-NOT-FINAL
+          name: Embasic-Legal-TUR009-Windows-Alpha-NOT-FINAL
           path: dist/EmbasicLegal/
           if-no-files-found: error

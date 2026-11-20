@@ -37,6 +37,26 @@ public sealed class SystematicsPage : ObservableViewModel
     public string Description => Workflow.Description;
     public IReadOnlyList<ProceduralCheck> Steps => Workflow.Checks;
     public bool IsSearch => Workflow.Key == "search";
+    public sealed record SeizureBasisChoice(SeizureAuthorizationBasis Value, string Title);
+    public IReadOnlyList<SeizureBasisChoice> BasisOptions { get; } =
+    [
+        new(SeizureAuthorizationBasis.NotEstablished, "Dayanak BELİRSİZ — karşılaştırma kapalı"),
+        new(SeizureAuthorizationBasis.PriorJudicialOrderDeclared, "ÖNCEDEN hâkim kararı var (yalnız kullanıcı beyanı)"),
+        new(SeizureAuthorizationBasis.WithoutPriorJudicialOrderDeclared, "ÖNCEDEN hâkim kararı YOK (yalnız kullanıcı beyanı)")
+    ];
+    private SeizureAuthorizationBasis _authorizationBasis = SeizureAuthorizationBasis.NotEstablished;
+    public SeizureAuthorizationBasis AuthorizationBasis
+    {
+        get => _authorizationBasis;
+        set
+        {
+            if (_authorizationBasis == value) return;
+            _authorizationBasis = value;
+            Changed();
+            InvalidateClock();
+        }
+    }
+
     public IReadOnlyList<NormDispute> NormRisks => IsSearch ? AdliSearchNormGate.Risks : [];
     public IReadOnlyList<CourtDecisionEvidence> CourtDecisions =>
         IsSearch ? CourtDecisionEvidenceRegister.Entries : [];
@@ -125,7 +145,8 @@ public sealed class SystematicsPage : ObservableViewModel
     public string FileCode { get => _fileCode; set { _fileCode = value; Changed(); } }
     public string Message { get => _message; private set { _message = value; Changed(); } }
     public bool HasReviewData => !string.IsNullOrWhiteSpace(FileCode) ||
-        (IsSearch && (!string.IsNullOrWhiteSpace(EventDate) ||
+        (IsSearch && (AuthorizationBasis != SeizureAuthorizationBasis.NotEstablished ||
+        !string.IsNullOrWhiteSpace(EventDate) ||
         !string.IsNullOrWhiteSpace(SeizureTime) ||
         !string.IsNullOrWhiteSpace(SubmissionTime) ||
         !string.IsNullOrWhiteSpace(DecisionTime) ||
@@ -182,6 +203,17 @@ public sealed class SystematicsPage : ObservableViewModel
     private void CompareClock()
     {
         if (!IsSearch) return;
+        // The 24/48 hour provisions address seizure without prior judicial order.
+        // Neither an unselected basis nor a claimed prior court order authorizes
+        // an unconditional mathematical CMK 127/3 review.
+        if (AuthorizationBasis != SeizureAuthorizationBasis.WithoutPriorJudicialOrderDeclared)
+        {
+            var preliminary = SeizureAuthorizationGate.Assess(AuthorizationBasis,
+                new SeizureDocumentInputs(null, "", null, "", null, ""));
+            ClockSummary = preliminary.Warning;
+            EvidenceSummary = "Yazılı karar veya emrin özgün kaynağı doğrulanmadı. Hukuki sonuç YOK.";
+            return;
+        }
         static bool ParseOptional(string text, out DateTimeOffset? moment)
         {
             moment = null;
@@ -198,9 +230,17 @@ public sealed class SystematicsPage : ObservableViewModel
             ClockSummary = "Geçersiz tarih-saat; açık UTC farkı zorunlu (örn. 2026-11-20T14:30+03:00). Hesap YOK.";
             return;
         }
-        var examination = SeizureDocumentGate.Examine(new SeizureDocumentInputs(
-            start, SeizureEvidence, submitted, SubmissionEvidence, decided, DecisionEvidence));
-        ClockSummary = examination.Clock.Summary;
+        var stage = SeizureAuthorizationGate.Assess(AuthorizationBasis,
+            new SeizureDocumentInputs(
+                start, SeizureEvidence, submitted, SubmissionEvidence, decided, DecisionEvidence));
+        var examination = stage.TimeAudit;
+        if (examination is null)
+        {
+            ClockSummary = stage.Warning;
+            EvidenceSummary = "24/48 saat mekanik incelemesi kapalı. Belgeli dayanak kanıtı yok.";
+            return;
+        }
+        ClockSummary = stage.Warning + " " + examination.Clock.Summary;
         EvidenceSummary = examination.Warning +
             (examination.DocumentMetadataComplete
                 ? " Kullanıcı beyanı alanları tamamlandı; belgenin gerçekliği ONAYLI DEĞİL."
@@ -217,6 +257,7 @@ public sealed class SystematicsPage : ObservableViewModel
         FileCode = "";
         if (IsSearch)
         {
+            AuthorizationBasis = SeizureAuthorizationBasis.NotEstablished;
             EventDate = "";
             SeizureTime = "";
             SubmissionTime = "";
@@ -245,6 +286,7 @@ public sealed class SystematicsPage : ObservableViewModel
         {
             b.AppendLine("Kullanıcı tarafından girilen olay tarihi: " + EventDate);
             b.AppendLine("Norm riski: " + NormSummary);
+            b.AppendLine("Ön hâkim kararı kullanıcı beyanı / belge değil: " + AuthorizationBasis);
             b.AppendLine("CMK127/3 saat aritmetiği: " + ClockSummary);
             b.AppendLine("Kullanıcı belge referansı / elkoyma: " + SeizureEvidence);
             b.AppendLine("Kullanıcı belge referansı / hâkime sunma: " + SubmissionEvidence);
