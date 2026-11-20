@@ -352,6 +352,20 @@
                         <Button Margin="0,5,0,5" Content="Tarihsel Norm Risklerini Göster"
                                 HorizontalAlignment="Left" Command="{Binding ReviewNormCommand}"/>
                         <TextBlock Text="{Binding NormSummary}" TextWrapping="Wrap"/>
+                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                Padding="10" CornerRadius="6" Margin="0,12,0,8">
+                          <StackPanel>
+                            <TextBlock FontWeight="Bold" FontSize="15" TextWrapping="Wrap"
+                                       Text="CMK 134 — AYM İptali / 25.02.2027 Tarihsel Kaynak Uyarısı"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,5,0,4"
+                                       Text="{Binding Aym134Warning}"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="11" Text="{Binding Aym134GazetteUrl}"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="11" Text="{Binding Aym134ReproductionUrl}"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="11"
+                                       Text="RESMÎ KARAR LİSTESİ YAYIM KAYDI, imzalı tam karar aslına veya olay tarihli CMK 134'ün kesin geçerliliğine eşdeğer değildir. Doğrulanmış kanun korpusu olmadan otomatik hukuki uygunluk yok."/>
+                          </StackPanel>
+                        </Border>
+
                         <TextBlock FontWeight="Bold" FontSize="15" Margin="0,12,0,5"
                                    Text="CMK 127/3 — Elkoyma 24/48 Saat Evrak Karşılaştırması"/>
                         <TextBlock Margin="0,8,0,3" FontWeight="Bold" TextWrapping="Wrap"

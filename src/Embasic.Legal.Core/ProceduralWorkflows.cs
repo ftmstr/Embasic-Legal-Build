@@ -180,7 +180,7 @@ public static class ProceduralWorkflows
             Q("S23","E. İADE","Elkoymanın devam gereği ve iade/itiraz imkânları yeniden değerlendirildi mi?",
                 "İade talebi, talebe cevap, el koyma devamına ilişkin kayıt.","CMK m.131-132; m.267 vd."),
             Q("S24","F. DİJİTAL MATERYAL","Bilgisayar/program/kütük araması varsa CMK 134'e özgü şüphe, son çare, yetki ve kopyalama güvenceleri kontrol edildi mi?",
-                "Dijital cihaz, imaj/hash, inceleme protokolü. Yönetmelik m.17 hakkında 2025 YD bilgisi ayrıca kontrol edilir.","CMK m.134; Yönetmelik m.17 (yürütme durdurma/güncellik kontrolü)",true),
+                "Dijital cihaz, imaj/hash, inceleme protokolü. Yönetmelik m.17 için 2025 YD; CMK 134 için AYM E.2023/128 K.2026/36, RG 25.05.2026/33264 ve 25.02.2027 ileri iptal yürürlük uyarısı; olay tarihi ve sonraki kanun ayrıca incelenir.","CMK m.134; Yönetmelik m.17 (yürütme durdurma/güncellik kontrolü)",true),
             Q("S25","F. AVUKAT BÜROSU","Avukat bürosu veya meslek sırrı söz konusuysa özel arama usulü ve hazır bulunacaklar uygulandı mı?",
                 "Mahkeme kararı, savcı denetimi, baro katılımı, itiraz ve mühür.","CMK m.130; Yönetmelik m.13",true),
             Q("S26","F. ASKERÎ MAHAL","Askerî mahal veya özel mevzuat alanı varsa ayrı yetki ve iştirak şartları incelendi mi?",
