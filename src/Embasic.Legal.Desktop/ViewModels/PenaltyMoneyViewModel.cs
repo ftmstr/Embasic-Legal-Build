@@ -75,7 +75,7 @@ public sealed class PenaltyMoneyViewModel : ObservableViewModel
                 "TCK 61/6, ceza alt/üst sınırları ve indirim sırası insan tarafından doğrulanmalıdır. " +
                 "HUKUKİ CEZA BELİRLENMEDİ.";
         }
-        catch (Exception ex) when (ex is ArgumentException or OverflowException)
+        catch (Exception ex) when (ex is ArgumentException or OverflowException or FormatException)
         { RatioResult = "Oran hesabı reddedildi: " + ex.Message; }
     }
     private void CalculateFine()
@@ -97,7 +97,7 @@ public sealed class PenaltyMoneyViewModel : ObservableViewModel
                     $" Tarihsel bilgi aralığı: {rate.HistoricalMinimum}–{rate.HistoricalMaximum} TL/gün.") +
                 " Mahkeme takdiri, özel suç hükmü, lehe kanun, dönüşüm koşulları ve sonraki değişiklikler otomatik onaylanmadı.";
         }
-        catch (Exception ex) when (ex is ArgumentException or OverflowException)
+        catch (Exception ex) when (ex is ArgumentException or OverflowException or FormatException)
         { FineResult = "Adlî para hesabı reddedildi: " + ex.Message; }
     }
     private void CalculateRevalue()
@@ -116,7 +116,7 @@ public sealed class PenaltyMoneyViewModel : ObservableViewModel
                 "YDO, TCK 52 günlük tutarına veya adlî para cezasına otomatik uygulanamaz. " +
                 "Kanuni yuvarlama, sınırlama, geçiş, istisna veya uygulanabilirlik kararı verilmedi.";
         }
-        catch (Exception ex) when (ex is ArgumentException or OverflowException)
+        catch (Exception ex) when (ex is ArgumentException or OverflowException or FormatException)
         { RevalueResult = "YDO matematiği reddedildi: " + ex.Message; }
     }
     private void ConvertOldLira()
@@ -129,7 +129,7 @@ public sealed class PenaltyMoneyViewModel : ObservableViewModel
                 $"{lira.ToString("N2", Turkish)} TL (1 Ocak 2005 parasal birim değişimi, 1.000.000:1). " +
                 "Bu enflasyon, bugünkü alım gücü veya dava tarihindeki hukuki tutar değildir.";
         }
-        catch (Exception ex) when (ex is ArgumentException or OverflowException)
+        catch (Exception ex) when (ex is ArgumentException or OverflowException or FormatException)
         { RevalueResult = "Para birimi dönüşümü reddedildi: " + ex.Message; }
     }
     private void CopySelected()
