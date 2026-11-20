@@ -214,6 +214,53 @@
               </WrapPanel>
               <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="430">
                 <StackPanel>
+                  <StackPanel Visibility="{Binding IsSearch, Converter={StaticResource BooleanVisibility}}">
+                    <Border Background="{DynamicResource BackgroundBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="7" Padding="10" Margin="0,8,0,12">
+                      <StackPanel>
+                        <TextBlock FontSize="16" FontWeight="Bold"
+                                   Text="Hukuki Kaynak, İptal ve Yürütmeyi Durdurma Riskleri"/>
+                        <TextBlock Margin="0,4,0,5" TextWrapping="Wrap" FontSize="11"
+                                   Text="Asıl Danıştay kararlarının tam metni ve sonraki safahat henüz doğrulanmadı. Tarihsel Bakanlık PDF'si güncel resmî metin kabul edilemez."/>
+                        <ItemsControl ItemsSource="{Binding NormRisks}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <StackPanel Margin="0,6,0,8">
+                                <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding Warning}" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding Reference}" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding EvidenceGrade}" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding DiscoveryUrl}" FontSize="11" TextWrapping="Wrap"/>
+                              </StackPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Margin="0,6,0,2" Text="Olay tarihi — yyyy-MM-dd (manuel norm incelemesi)"/>
+                        <TextBox Width="235" MaxLength="10" HorizontalAlignment="Left"
+                                 Text="{Binding EventDate, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Button Margin="0,5,0,5" Content="Tarihsel Norm Risklerini Göster"
+                                HorizontalAlignment="Left" Command="{Binding ReviewNormCommand}"/>
+                        <TextBlock Text="{Binding NormSummary}" TextWrapping="Wrap"/>
+                        <TextBlock FontWeight="Bold" FontSize="15" Margin="0,12,0,5"
+                                   Text="CMK 127/3 — Elkoyma 24/48 Saat Evrak Karşılaştırması"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11"
+                                   Text="Biçim: 2026-11-20T14:30+03:00. 24 saat hâkime sunma; 48 saat elkoymadan itibaren karar açıklama referansıdır. Sonuç yalnız aritmetiktir; gerçek belge veya hukuki uygunluk onayı değildir."/>
+                        <TextBlock Margin="0,7,0,2" Text="Elkoyma anı"/>
+                        <TextBox Width="320" MaxLength="26" HorizontalAlignment="Left"
+                                 Text="{Binding SeizureTime, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Margin="0,7,0,2" Text="Hâkime sunma anı"/>
+                        <TextBox Width="320" MaxLength="26" HorizontalAlignment="Left"
+                                 Text="{Binding SubmissionTime, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Margin="0,7,0,2" Text="Hâkim kararının açıklanma anı"/>
+                        <TextBox Width="320" MaxLength="26" HorizontalAlignment="Left"
+                                 Text="{Binding DecisionTime, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Button Margin="0,7,0,5" Content="Saatleri Aritmetik Karşılaştır"
+                                HorizontalAlignment="Left" Command="{Binding CompareClockCommand}"/>
+                        <TextBlock Text="{Binding ClockSummary}" TextWrapping="Wrap"/>
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
                   <StackPanel Visibility="{Binding ShowDiagram, Converter={StaticResource BooleanVisibility}}">
                     <TextBlock FontWeight="Bold" FontSize="17" Margin="0,10,0,8"
                                Text="Şematik süreç — aşama → şart → dayanak → dosya belgesi"/>
@@ -245,7 +292,7 @@
                     <TextBlock TextWrapping="Wrap" FontSize="11"
                                Text="Yalnız kimliksiz evrak referansları girin; kişisel bilgi veya soruşturma içeriği yazmayın. İşaretler yalnız RAM'de kalır. Belgeyle kontrol edildi ve Uygulanmaz durumlarına kanıt/gerekçe gereklidir."/>
                     <TextBlock Text="Kimliksiz dosya kodu (isteğe bağlı)" Margin="0,9,0,1"/>
-                    <TextBox Text="{Binding FileCode, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox Text="{Binding FileCode, UpdateSourceTrigger=PropertyChanged}" MaxLength="48"
                              Width="280" HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding ReviewSummary}" TextWrapping="Wrap"
                                FontWeight="Bold" Margin="0,7,0,10"/>
@@ -264,7 +311,7 @@
                                         ItemsSource="{Binding Options}"
                                         DisplayMemberPath="DisplayName" SelectedValuePath="Code"
                                         SelectedValue="{Binding State, Mode=TwoWay}"/>
-                              <TextBox Text="{Binding Evrak, UpdateSourceTrigger=PropertyChanged}"
+                              <TextBox Text="{Binding Evrak, UpdateSourceTrigger=PropertyChanged}" MaxLength="180"
                                        ToolTip="Kimliksiz evrak referansı veya uygulanmaz gerekçesi"
                                        AutomationProperties.Name="Evrak referansı ve gerekçe"/>
                             </StackPanel>

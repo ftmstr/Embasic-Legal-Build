@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -35,6 +36,19 @@ public sealed class SystematicsPage : ObservableViewModel
     public string ButtonTitle => Workflow.Title;
     public string Description => Workflow.Description;
     public IReadOnlyList<ProceduralCheck> Steps => Workflow.Checks;
+    public bool IsSearch => Workflow.Key == "search";
+    public IReadOnlyList<NormDispute> NormRisks => IsSearch ? AdliSearchNormGate.Risks : [];
+    private string _eventDate = "", _seizure = "", _submission = "", _decision = "";
+    private string _normSummary = AdliSearchNormGate.Assess(null).Summary;
+    private string _clockSummary = "CMK 127/3 belge saatleri girilmedi; hukuki sonuç üretilmedi.";
+    public string EventDate { get => _eventDate; set { _eventDate = value; Changed(); } }
+    public string SeizureTime { get => _seizure; set { _seizure = value; Changed(); } }
+    public string SubmissionTime { get => _submission; set { _submission = value; Changed(); } }
+    public string DecisionTime { get => _decision; set { _decision = value; Changed(); } }
+    public string NormSummary { get => _normSummary; private set { _normSummary = value; Changed(); } }
+    public string ClockSummary { get => _clockSummary; private set { _clockSummary = value; Changed(); } }
+    public ICommand ReviewNormCommand { get; }
+    public ICommand CompareClockCommand { get; }
     public ObservableCollection<SystematicRow> Rows { get; }
     private bool _opened, _diagram = true, _audit;
     private string _fileCode = "", _message = "Hukuki mevzuat tamlığı ve dosya uygunluğu otomatik doğrulanmaz.";
@@ -43,7 +57,11 @@ public sealed class SystematicsPage : ObservableViewModel
     public bool ShowAudit { get => _audit; private set { _audit = value; Changed(); } }
     public string FileCode { get => _fileCode; set { _fileCode = value; Changed(); } }
     public string Message { get => _message; private set { _message = value; Changed(); } }
-    public bool HasReviewData => !string.IsNullOrWhiteSpace(FileCode) || Rows.Any(r =>
+    public bool HasReviewData => !string.IsNullOrWhiteSpace(FileCode) ||
+        (IsSearch && (!string.IsNullOrWhiteSpace(EventDate) ||
+        !string.IsNullOrWhiteSpace(SeizureTime) ||
+        !string.IsNullOrWhiteSpace(SubmissionTime) ||
+        !string.IsNullOrWhiteSpace(DecisionTime))) || Rows.Any(r =>
         r.State != ProceduralEvidenceState.NotReviewed || !string.IsNullOrWhiteSpace(r.Evrak));
     public string ReviewSummary {
         get {
@@ -68,7 +86,44 @@ public sealed class SystematicsPage : ObservableViewModel
         AuditCommand = new RelayCommand(_ => Show(diagram: false));
         CopyCommand = new RelayCommand(_ => Copy());
         ResetCommand = new RelayCommand(_ => Reset());
+        ReviewNormCommand = new RelayCommand(_ => ReviewNorm());
+        CompareClockCommand = new RelayCommand(_ => CompareClock());
     }
+    private void ReviewNorm()
+    {
+        if (!IsSearch) return;
+        if (!DateOnly.TryParseExact(EventDate, "yyyy-MM-dd",
+            CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            NormSummary = "Olay tarihi yyyy-MM-dd biçiminde değil veya eksik. Sürüm ve iptal/YD riski AÇIK.";
+            return;
+        }
+        NormSummary = AdliSearchNormGate.Assess(date).Summary +
+            " Kaynakları ve birincil karar metinlerini insan doğrulamalı; resmî tamlık PASS yok.";
+    }
+
+    private void CompareClock()
+    {
+        if (!IsSearch) return;
+        static bool ParseOptional(string text, out DateTimeOffset? moment)
+        {
+            moment = null;
+            if (string.IsNullOrWhiteSpace(text)) return true;
+            if (!SeizureClockAudit.TryParseLocalWithOffset(text.Trim(), out var parsed))
+                return false;
+            moment = parsed;
+            return true;
+        }
+        if (!ParseOptional(SeizureTime, out var start) ||
+            !ParseOptional(SubmissionTime, out var submitted) ||
+            !ParseOptional(DecisionTime, out var decided))
+        {
+            ClockSummary = "Geçersiz tarih-saat; açık UTC farkı zorunlu (örn. 2026-11-20T14:30+03:00). Hesap YOK.";
+            return;
+        }
+        ClockSummary = SeizureClockAudit.Compare(start, submitted, decided).Summary;
+    }
+
     private void Show(bool diagram) { ShowDiagram = diagram; ShowAudit = !diagram; }
     private void Reset()
     {
@@ -77,6 +132,15 @@ public sealed class SystematicsPage : ObservableViewModel
             "Embasic Legal", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         foreach (var row in Rows) row.Clear();
         FileCode = "";
+        if (IsSearch)
+        {
+            EventDate = "";
+            SeizureTime = "";
+            SubmissionTime = "";
+            DecisionTime = "";
+            NormSummary = AdliSearchNormGate.Assess(null).Summary;
+            ClockSummary = "CMK 127/3 belge saatleri girilmedi; hukuki sonuç üretilmedi.";
+        }
         Message = "Geçici kontroller temizlendi; otomatik hukuki karar yok.";
     }
     private void Copy()
@@ -90,6 +154,13 @@ public sealed class SystematicsPage : ObservableViewModel
         b.AppendLine(ButtonTitle);
         b.AppendLine("Kimliksiz dosya kodu: " + FileCode);
         b.AppendLine("Tarih: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+        if (IsSearch)
+        {
+            b.AppendLine("Kullanıcı tarafından girilen olay tarihi: " + EventDate);
+            b.AppendLine("Norm riski: " + NormSummary);
+            b.AppendLine("CMK127/3 saat aritmetiği: " + ClockSummary);
+            b.AppendLine("RESMÎ METİN / BİRİNCİL KARAR / HUKUKİ UYGUNLUK ONAYI: YOK");
+        }
         foreach (var item in Rows) {
             b.AppendLine(item.Check.Id + " | " + item.Check.Phase + " | " + item.Check.Question);
             b.AppendLine("Kaynak kontrolü: " + item.Check.LegalReferences);
