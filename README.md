@@ -1,4 +1,4 @@
-# Embasic Legal 2.0 — Windows Alpha TUR005
+# Embasic Legal 2.0 — Windows Alpha TUR007
 
 Genuine Windows C#/.NET 10 WPF EXE, NOT a browser launcher. **Alpha / legal production NO-GO.**
 
@@ -7,8 +7,8 @@ Features:
 - Original E-terazi assets and light/dark themes. Artwork redistribution rights unverified.
 - 15-law metadata directory and local candidate PDF hashes only; no verified complete official statute corpus.
 - Synthetic-only WPF article note popup, 📝 sticker, AES-256-GCM encrypted note texts, protected backup/restore. Note metadata remains plaintext.
-- TUR005: read-only legacy plaintext note preview, explicit checkbox AND second yes/no consent for atomic migration into encrypted vault. Original legacy plaintext data retained.
-- TUR005: each Tutuklama, Adli Kontrol and Arama ve El Koyma menu heading has its own “… Sistematiği” button, opening a pedagogical diagram and human-operated case-file audit. 12 + 12 + 27 cited steps. No automatic legal compliance decision; audit data stays in RAM unless user explicitly copies it.
+- TUR007: read-only legacy plaintext note preview, explicit checkbox AND second yes/no consent for atomic migration into encrypted vault. Original legacy plaintext data retained.
+- TUR007: each Tutuklama, Adli Kontrol and Arama ve El Koyma menu heading has its own “… Sistematiği” button, opening a pedagogical diagram and human-operated case-file audit. 12 + 12 + 27 cited steps. No automatic legal compliance decision; audit data stays in RAM unless user explicitly copies it.
 - Manual offline Windows UAT PowerShell script included in CI Alpha artifact. No physical Windows UAT PASS claim.
 
 Windows .NET 10 commands:
@@ -19,4 +19,8 @@ dotnet publish src/Embasic.Legal.Desktop/Embasic.Legal.Desktop.csproj -c Release
 
 Never enter real investigation secrets in this Alpha. No main merge, tag, installer or release. LICENSE is GPL-3.0 while master prompt requests MIT; rights resolution remains pending.
 
-See docs/TUR005-THREE-PROCEDURAL-SYSTEMATICS.md and docs/TUR005-MIGRATION-AND-WINDOWS-UAT.md.
+See docs/TUR007-THREE-PROCEDURAL-SYSTEMATICS.md and docs/TUR007-MIGRATION-AND-WINDOWS-UAT.md.
+
+## TUR007 — Evidence integrity
+
+Danıştay 2007 published judgment reproduction is distinct from court-certified original; 2012 and 2025 sources remain secondary. The Search and Seizure WPF panel records non-identifying reference labels for three procedural timestamps and invalidates computed output on any edit. Court applicability and source authenticity are never certified. See docs/TUR007-COURT-SOURCE-AND-DOCUMENT-GATES.md.
