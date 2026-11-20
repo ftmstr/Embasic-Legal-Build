@@ -185,6 +185,138 @@ public sealed class EncryptedArticleNotes : IDisposable
     }
 
     /// <summary>
+    /// A user-exported checkpoint can detect later deletion or replacement of
+    /// rows, provided its bytes are retained independently of the SQLite file.
+    /// It is deliberately opt-in: legacy EAL4 vaults remain readable without it.
+    /// No legal/source authenticity is implied.
+    /// </summary>
+    public sealed record VaultIntegrityWitness(
+        string Format, int NoteCount, string SnapshotMacHex, string CapturedUtc);
+
+    private const string WitnessFormat = "EAL4-EXTERNAL-WITNESS-1";
+    private const string WitnessKeyDomain = "Embasic Legal external witness HMAC key v1";
+    private const string WitnessPayloadDomain = "Embasic Legal snapshot witness v1";
+
+    private (int NoteCount, byte[] Mac) ComputeWitnessMac(string capturedUtc)
+    {
+        EnsureOpen();
+        if (!CheckIntegrity())
+            throw new InvalidDataException("Kasa şifreli içeriği doğrulanamadı; makbuz reddedildi.");
+        byte[] witnessKey = HMACSHA256.HashData(
+            _encryptionKey, Encoding.UTF8.GetBytes(WitnessKeyDomain));
+        try
+        {
+            using var stream = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, witnessKey);
+            stream.AppendData(Encoding.UTF8.GetBytes(WitnessPayloadDomain));
+            AppendWitnessPart(stream, Encoding.UTF8.GetBytes(capturedUtc));
+            int totalRows = 0;
+            _store.InspectAllRows(row =>
+            {
+                // Include ciphertext (not plaintext), stable version identity,
+                // row ID and the SQLite timestamps. The HMAC output discloses
+                // only the user-record count, not individual law/article IDs.
+                byte[] record = JsonSerializer.SerializeToUtf8Bytes(new[]
+                {
+                    row.Id, row.Key.LawNumber, row.Key.ArticleKey,
+                    row.Key.SubdivisionKey, row.Key.VersionKey, row.Text,
+                    row.CreatedUtc.ToUniversalTime().ToString("O"),
+                    row.UpdatedUtc.ToUniversalTime().ToString("O")
+                });
+                AppendWitnessPart(stream, record);
+                totalRows++;
+            });
+            return (totalRows - 2, stream.GetHashAndReset());
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(witnessKey);
+        }
+    }
+
+    private static void AppendWitnessPart(IncrementalHash hash, byte[] bytes)
+    {
+        byte[] length = new byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(length, bytes.Length);
+        hash.AppendData(length);
+        hash.AppendData(bytes);
+    }
+
+    /// <summary>
+    /// Export an authenticated content-free witness. Keep it on an independent
+    /// drive or trusted medium. Replacing it with a matching old witness along
+    /// with an old database defeats this check (no external secure monotonic
+    /// clock/signature is available). Requires explicit overwrite consent.
+    /// </summary>
+    public VaultIntegrityWitness ExportIntegrityWitness(
+        string path, bool userConfirmedOverwrite = false)
+    {
+        EnsureOpen();
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Makbuz yolu gerekli.", nameof(path));
+        string destination = Path.GetFullPath(path);
+        if (string.Equals(destination, _databasePath, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Makbuz kasa dosyasının üzerine yazılamaz.", nameof(path));
+        if (File.Exists(destination) && !userConfirmedOverwrite)
+            throw new IOException("Mevcut bütünlük makbuzu açık onay olmadan ezilemez.");
+        string stamp = DateTimeOffset.UtcNow.ToString("O");
+        var (count, mac) = ComputeWitnessMac(stamp);
+        var receipt = new VaultIntegrityWitness(
+            WitnessFormat, count, Convert.ToHexString(mac), stamp);
+        CryptographicOperations.ZeroMemory(mac);
+        string stage = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            // The witness contains no note bodies, law IDs or passwords.
+            File.WriteAllBytes(stage, JsonSerializer.SerializeToUtf8Bytes(receipt));
+            File.Move(stage, destination, overwrite: userConfirmedOverwrite);
+            return receipt;
+        }
+        finally
+        {
+            if (File.Exists(stage)) File.Delete(stage);
+        }
+    }
+
+    /// <summary>
+    /// False means snapshot mismatch, corrupted witness, or missing records.
+    /// Never treat an absent witness as a PASS. Called only when the user
+    /// selects an independently preserved witness; no automatic state change.
+    /// </summary>
+    public bool VerifyIntegrityWitness(string path)
+    {
+        EnsureOpen();
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Makbuz yolu gerekli.", nameof(path));
+        byte[] file = File.ReadAllBytes(Path.GetFullPath(path));
+        if (file.Length is < 40 or > 2048) return false;
+        VaultIntegrityWitness? receipt;
+        try
+        {
+            receipt = JsonSerializer.Deserialize<VaultIntegrityWitness>(file);
+            if (receipt is null || receipt.Format != WitnessFormat ||
+                receipt.NoteCount is < 0 or > 1000 ||
+                string.IsNullOrWhiteSpace(receipt.CapturedUtc) ||
+                receipt.CapturedUtc.Length > 64 ||
+                string.IsNullOrWhiteSpace(receipt.SnapshotMacHex) ||
+                receipt.SnapshotMacHex.Length != 64)
+                return false;
+            var (count, expected) = ComputeWitnessMac(receipt.CapturedUtc);
+            try
+            {
+                byte[] supplied = Convert.FromHexString(receipt.SnapshotMacHex);
+                return count == receipt.NoteCount &&
+                    CryptographicOperations.FixedTimeEquals(expected, supplied);
+            }
+            finally { CryptographicOperations.ZeroMemory(expected); }
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or
+            ArgumentException or InvalidDataException or CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Refuse to create or overwrite a backup when any encrypted note fails
     /// authentication. After the SQLite online backup, independently open and
     /// authenticate the snapshot before reporting success. Preserve the prior
