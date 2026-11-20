@@ -103,6 +103,10 @@ public sealed class MainViewModel : ObservableViewModel
         new("supervision", "Adli Kontrol"),
         new("search", "Arama ve El Koyma"),
         new("hub", "Adli Hesaplama Merkezi"),
+        new("penalty", "  ├ Adli Ceza ve Para Cezası"),
+        new("sentence", "      • Ceza oran hesaplama"),
+        new("convert", "      • Hapis / para hesabı"),
+        new("revalue", "      • YDO / para dönüşümü"),
         new("dates", "  ├ Belirli Tarih / Olay Tarihi"),
         new("shift", "  ├ Tarihe Gün / Ay / Yıl"),
         new("night", "  └ Gece Vakti"),
@@ -111,6 +115,7 @@ public sealed class MainViewModel : ObservableViewModel
         new("settings", "Ayarlar ve Hakkında")
     ];
     private readonly NoteSandboxViewModel _notesSandbox = new();
+    private readonly PenaltyMoneyViewModel _penalty = new();
     private readonly SystematicsPage _detention = new(ProceduralWorkflows.Detention, "Tutuklama");
     private readonly SystematicsPage _supervision = new(ProceduralWorkflows.JudicialControl, "Adli Kontrol");
     private readonly SystematicsPage _searchSeizure = new(ProceduralWorkflows.SearchSeizure, "Arama ve El Koyma");
@@ -126,12 +131,22 @@ public sealed class MainViewModel : ObservableViewModel
 
     public MainViewModel() => NavigateCommand = new RelayCommand(value => Navigate(value as string));
 
+    private PenaltyMoneyViewModel SetPenaltyTab(int tab)
+    {
+        _penalty.OpenTab(tab);
+        return _penalty;
+    }
+
     private void Navigate(string? key)
     {
         object page = key switch
         {
             "home" => new DashboardViewModel(),
             "hub" => new CalculatorHubViewModel(),
+            "penalty" => _penalty,
+            "sentence" => SetPenaltyTab(0),
+            "convert" => SetPenaltyTab(1),
+            "revalue" => SetPenaltyTab(2),
             "dates" => new DateRangeViewModel(),
             "shift" => new DateShiftViewModel(),
             "night" => new NightViewModel(),

@@ -21,11 +21,11 @@ Write-Host "EXE SHA256 verified: $actualSha"
 Write-Host 'No automated GUI/PDF acceptance is claimed; respond only from real observations.'
 Write-Host 'Do NOT input actual investigation notes, personal data, or passwords in this script.'
 $cases = @(
-    '2007 Danıştay kararının dergide yayımlanan metni görülür; resmî Danıştay sureti PASS ilan edilmez',
-    '2007 iptali m8(a), m8(f), m30(1); m8(c) ve m27 ret bilgisi görünür',
-    '2012 onama ve 2025 YD yalnız ikincil kaynak olarak gösterilir',
-    'Belge saati ve evrak referansı değişince önceki hesap sonucu GEÇERSİZ olur',
-    'Evrak referansı eksikse tamamlık uyarısı çıkar; dolu olsa da resmî evrak PASS yoktur',
+    'Adli Hesaplama Merkezi ve Ceza oran hesaplama, Hapis / para hesabı, YDO / para dönüşümü sekmeleri erişilebilir',
+    '100 tam gün 1/6 indirim 83, artırım 116 tam gün örneği',
+    'Günlük 20-100 TL ve 100-500 TL bilgisi 1 Haziran 2024 değişikliğiyle tarihsel ayrılır',
+    'YDO oranları manuel bileşik; eski TL 1000000 birim => 1 TL dönüşümü',
+    'Hukuki ceza, hapis dönüşümü, lehe kanun veya YDO adli para uygulanması için otomatik PASS yok',
 
     'Arama ve El Koyma ekranında m8(a), m8(f), m30(1), m17(1) uyarıları ve kaynak düzeyleri görünür',
     'Yönetmelik adlî m5-17, önleme m18-26 ve icra m27-32 ayrımı görünür',
