@@ -21,6 +21,7 @@ public sealed class EncryptedArticleNotes : IDisposable
     private static readonly ArticleNoteKey CheckKey =
         new("__EMBASIC_V4_METADATA__", "PASSWORD-CHECK", "", "1");
     private readonly ArticleNoteStore _store;
+    private readonly string _databasePath;
     private readonly byte[] _encryptionKey;
     private readonly byte[] _salt;
     private bool _disposed;
@@ -38,6 +39,7 @@ public sealed class EncryptedArticleNotes : IDisposable
 
         string fullPath = Path.GetFullPath(databasePath);
         bool existing = File.Exists(fullPath);
+        _databasePath = fullPath;
         _store = new ArticleNoteStore(fullPath);
         byte[]? derived = null;
         try
@@ -193,15 +195,28 @@ public sealed class EncryptedArticleNotes : IDisposable
         EnsureOpen();
         if (!CheckIntegrity())
             throw new InvalidDataException("Kasa şifreli içerik doğrulaması başarısız; yedek reddedildi.");
-        // The store itself creates a temporary snapshot and atomically moves
-        // it only after structural verification.
-        string backup = _store.BackupTo(path);
-        // Authenticated snapshot audit reuses the unlocked vault key without
-        // ever reconstructing a passphrase or exposing it to the filesystem.
-        using var snapshotStore = new ArticleNoteStore(backup);
-        if (!AuthenticateStore(snapshotStore))
-            throw new InvalidDataException("Yedek şifreli içerik doğrulaması başarısız.");
-        return backup;
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Yedek yolu gerekli.", nameof(path));
+        string destination = Path.GetFullPath(path);
+        if (string.Equals(destination, _databasePath, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Kasa dosyası üzerine yedek alınamaz.", nameof(path));
+        // The existing complete backup MUST survive a corrupted SQLite/AES
+        // snapshot. The actual destination is replaced only after an entirely
+        // authenticated staged snapshot has passed validation.
+        string staging = destination + "." + Guid.NewGuid().ToString("N") + ".auth.tmp";
+        try
+        {
+            _store.BackupTo(staging);
+            using (var snapshotStore = new ArticleNoteStore(staging))
+                if (!AuthenticateStore(snapshotStore))
+                    throw new InvalidDataException("Yedek şifreli içerik doğrulaması başarısız.");
+            File.Move(staging, destination, overwrite: true);
+            return destination;
+        }
+        finally
+        {
+            if (File.Exists(staging)) File.Delete(staging);
+        }
     }
 
     /// <summary>
