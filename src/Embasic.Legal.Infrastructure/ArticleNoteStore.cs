@@ -181,6 +181,39 @@ public sealed class ArticleNoteStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// Internal read-only audit of *every* stored row including system
+    /// metadata. SQLite quick_check does not authenticate AES-GCM ciphertext.
+    /// Consumers must verify each returned row before approving a backup.
+    /// </summary>
+    internal void InspectAllRows(Action<ArticleNote> inspect)
+    {
+        ArgumentNullException.ThrowIfNull(inspect);
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, LawNumber, ArticleKey, SubdivisionKey, VersionKey,
+                   NoteText, CreatedUtc, UpdatedUtc
+              FROM ArticleNotes
+             ORDER BY LawNumber, ArticleKey, SubdivisionKey, VersionKey;
+            """;
+        using var rows = cmd.ExecuteReader();
+        int count = 0;
+        while (rows.Read())
+        {
+            if (++count > 1002)
+                throw new InvalidDataException("Şifreli kasa beklenmeyen kayıt sınırını aştı.");
+            var key = new ArticleNoteKey(rows.GetString(1), rows.GetString(2),
+                rows.GetString(3), rows.GetString(4));
+            key.Validate();
+            var note = new ArticleNote(rows.GetString(0), key, rows.GetString(5),
+                DateTimeOffset.Parse(rows.GetString(6), CultureInfo.InvariantCulture),
+                DateTimeOffset.Parse(rows.GetString(7), CultureInfo.InvariantCulture));
+            if (string.IsNullOrWhiteSpace(note.Id) || note.Id.Length > 128)
+                throw new InvalidDataException("Kasa notu kimliği geçersiz.");
+            inspect(note);
+        }
+    }
+
     public bool CheckIntegrity()
     {
         using var cmd = _connection.CreateCommand();

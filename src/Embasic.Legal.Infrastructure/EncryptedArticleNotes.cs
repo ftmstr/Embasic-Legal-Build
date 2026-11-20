@@ -21,6 +21,7 @@ public sealed class EncryptedArticleNotes : IDisposable
     private static readonly ArticleNoteKey CheckKey =
         new("__EMBASIC_V4_METADATA__", "PASSWORD-CHECK", "", "1");
     private readonly ArticleNoteStore _store;
+    private readonly string _databasePath;
     private readonly byte[] _encryptionKey;
     private readonly byte[] _salt;
     private bool _disposed;
@@ -38,6 +39,7 @@ public sealed class EncryptedArticleNotes : IDisposable
 
         string fullPath = Path.GetFullPath(databasePath);
         bool existing = File.Exists(fullPath);
+        _databasePath = fullPath;
         _store = new ArticleNoteStore(fullPath);
         byte[]? derived = null;
         try
@@ -139,13 +141,82 @@ public sealed class EncryptedArticleNotes : IDisposable
     public bool CheckIntegrity()
     {
         EnsureOpen();
-        return _store.CheckIntegrity();
+        return AuthenticateStore(_store);
     }
 
+    private bool AuthenticateStore(ArticleNoteStore store)
+    {
+        try
+        {
+            if (!store.CheckIntegrity()) return false;
+            int saltCount = 0, sentinelCount = 0;
+            store.InspectAllRows(row =>
+            {
+                if (row.Key == SaltKey)
+                {
+                    if (++saltCount != 1 ||
+                        !string.Equals(row.Text, Convert.ToBase64String(_salt),
+                            StringComparison.Ordinal))
+                        throw new InvalidDataException("Kasa salt üstverisi değişmiş.");
+                }
+                else if (row.Key == CheckKey)
+                {
+                    if (++sentinelCount != 1 ||
+                        !string.Equals(Decrypt(row.Text, CheckKey, _encryptionKey),
+                            Sentinel, StringComparison.Ordinal))
+                        throw new CryptographicException("Kasa doğrulama sentinel hatası.");
+                }
+                else
+                {
+                    ValidateUserKey(row.Key);
+                    string value = Decrypt(row.Text, row.Key, _encryptionKey);
+                    if (string.IsNullOrWhiteSpace(value) ||
+                        Encoding.UTF8.GetByteCount(value) > 50_000)
+                        throw new InvalidDataException("Kasa şifreli notunun içerik sınırı geçersiz.");
+                }
+            });
+            return saltCount == 1 && sentinelCount == 1;
+        }
+        catch (Exception ex) when (ex is CryptographicException or InvalidDataException
+            or FormatException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Refuse to create or overwrite a backup when any encrypted note fails
+    /// authentication. After the SQLite online backup, independently open and
+    /// authenticate the snapshot before reporting success. Preserve the prior
+    /// backup on failed source verification.
+    /// </summary>
     public string BackupTo(string path)
     {
         EnsureOpen();
-        return _store.BackupTo(path);
+        if (!CheckIntegrity())
+            throw new InvalidDataException("Kasa şifreli içerik doğrulaması başarısız; yedek reddedildi.");
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Yedek yolu gerekli.", nameof(path));
+        string destination = Path.GetFullPath(path);
+        if (string.Equals(destination, _databasePath, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Kasa dosyası üzerine yedek alınamaz.", nameof(path));
+        // The existing complete backup MUST survive a corrupted SQLite/AES
+        // snapshot. The actual destination is replaced only after an entirely
+        // authenticated staged snapshot has passed validation.
+        string staging = destination + "." + Guid.NewGuid().ToString("N") + ".auth.tmp";
+        try
+        {
+            _store.BackupTo(staging);
+            using (var snapshotStore = new ArticleNoteStore(staging))
+                if (!AuthenticateStore(snapshotStore))
+                    throw new InvalidDataException("Yedek şifreli içerik doğrulaması başarısız.");
+            File.Move(staging, destination, overwrite: true);
+            return destination;
+        }
+        finally
+        {
+            if (File.Exists(staging)) File.Delete(staging);
+        }
     }
 
     /// <summary>
@@ -165,7 +236,8 @@ public sealed class EncryptedArticleNotes : IDisposable
         byte[] originalSalt;
         using (var old = new EncryptedArticleNotes(backup, passphrase))
         {
-            if (!old.CheckIntegrity()) throw new InvalidDataException("Yedek SQLite bütünlüğü geçersiz.");
+            if (!old.CheckIntegrity())
+                throw new InvalidDataException("Yedek şifreli notlardan biri veya SQLite yapısı bozuk; geri yükleme reddedildi.");
             originalSalt = (byte[])old._salt.Clone();
         }
 
@@ -173,6 +245,8 @@ public sealed class EncryptedArticleNotes : IDisposable
         if (File.Exists(target))
         {
             using var present = new EncryptedArticleNotes(target, passphrase);
+            if (!present.CheckIntegrity())
+                throw new InvalidDataException("Mevcut kasada bozuk şifreli not var; geri yüklemeden önce insan incelemesi gerekli.");
             if (!present._salt.AsSpan().SequenceEqual(originalSalt))
                 throw new InvalidDataException("Yedek başka bir kasaya aittir; üzerine yazma reddedildi.");
         }
