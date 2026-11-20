@@ -58,6 +58,11 @@ public sealed class SystematicsPage : ObservableViewModel
     }
 
     public IReadOnlyList<NormDispute> NormRisks => IsSearch ? AdliSearchNormGate.Risks : [];
+    public string Aym134GazetteUrl => Cmk134ConstitutionalCourtGate.GazetteIndexUrl;
+    public string Aym134ReproductionUrl => Cmk134ConstitutionalCourtGate.DecisionReproductionUrl;
+    private string _aym134Warning = Cmk134ConstitutionalCourtGate.Assess(null).Warning;
+    public string Aym134Warning { get => _aym134Warning; private set { _aym134Warning = value; Changed(); } }
+
     public IReadOnlyList<CourtDecisionEvidence> CourtDecisions =>
         IsSearch ? CourtDecisionEvidenceRegister.Entries : [];
     public string OfficialCourtSearchPortal => CourtDecisionEvidenceRegister.OfficialSearchPortalUrl;
@@ -97,6 +102,9 @@ public sealed class SystematicsPage : ObservableViewModel
             _eventDate = value;
             Changed();
             NormSummary = "Olay tarihi değişti; önceki değerlendirme geçersiz. Yeniden inceleyin.";
+            Aym134Warning = "Olay tarihi değişti. Önceki CMK 134 / AYM değerlendirmesi GEÇERSİZ; yeniden değerlendirin.";
+            InvalidateClock(); // A changed case-date could alter the applicable law-version assessment.
+
         }
     }
     public string SeizureTime
@@ -193,8 +201,10 @@ public sealed class SystematicsPage : ObservableViewModel
             CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
         {
             NormSummary = "Olay tarihi yyyy-MM-dd biçiminde değil veya eksik. Sürüm ve iptal/YD riski AÇIK.";
+            Aym134Warning = Cmk134ConstitutionalCourtGate.Assess(null).Warning;
             return;
         }
+        Aym134Warning = Cmk134ConstitutionalCourtGate.Assess(date).Warning;
         NormSummary = AdliSearchNormGate.Assess(date).Summary + " " +
             CourtDecisionEvidenceRegister.Assess(date).Warning +
             " Asıl karar sureti ve sonradan oluşan norm değişikliği insan tarafından doğrulanmalı.";
@@ -266,6 +276,7 @@ public sealed class SystematicsPage : ObservableViewModel
             SubmissionEvidence = "";
             DecisionEvidence = "";
             NormSummary = AdliSearchNormGate.Assess(null).Summary;
+            Aym134Warning = Cmk134ConstitutionalCourtGate.Assess(null).Warning;
             ClockSummary = "CMK 127/3 belge saatleri girilmedi; hukuki sonuç üretilmedi.";
             EvidenceSummary = "Evrak kanıtları sıfırlandı; orijinal kaynak doğrulaması yapılmadı.";
         }
@@ -286,6 +297,7 @@ public sealed class SystematicsPage : ObservableViewModel
         {
             b.AppendLine("Kullanıcı tarafından girilen olay tarihi: " + EventDate);
             b.AppendLine("Norm riski: " + NormSummary);
+            b.AppendLine("CMK 134 AYM yargı kararı uyarısı: " + Aym134Warning);
             b.AppendLine("Ön hâkim kararı kullanıcı beyanı / belge değil: " + AuthorizationBasis);
             b.AppendLine("CMK127/3 saat aritmetiği: " + ClockSummary);
             b.AppendLine("Kullanıcı belge referansı / elkoyma: " + SeizureEvidence);
