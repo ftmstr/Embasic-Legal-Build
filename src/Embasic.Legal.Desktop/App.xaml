@@ -213,9 +213,13 @@
                     CommandParameter="{Binding ElementName=VaultPassword}"/>
             <Button Content="Kasayı kilitle" Command="{Binding LockCommand}"/>
             <Button Content="Şifreli yedeği dışa aktar" Command="{Binding ExportBackupCommand}"/>
+            <Button Content="Bağımsız bütünlük makbuzu oluştur"
+                    Command="{Binding ExportWitnessCommand}"/>
+            <Button Content="Önceki bütünlük makbuzunu doğrula"
+                    Command="{Binding VerifyWitnessCommand}"/>
           </WrapPanel>
           <TextBlock Margin="0,0,0,10" TextWrapping="Wrap" FontSize="11"
-                     Text="Parolanızı kaybederseniz kasa kurtarılamaz. Eski TUR003 düz metin notları ayrı tutulur; otomatik taşınmaz. Gizli soruşturma verisi GİRMEYİN."/>
+                     Text="Parolanızı kaybederseniz kasa kurtarılamaz. Eski TUR003 düz metin notları ayrı tutulur; otomatik taşınmaz. Gizli soruşturma verisi GİRMEYİN. Makbuzu yedekten ayrı saklayın; sonradan not düzenlerseniz makbuz eski kalır. Şifresiz madde/sürüm metadata ve eski düz metin kaynak riski devam eder."/>
           <Border Margin="0,8,0,10" Padding="12" BorderThickness="1"
                   BorderBrush="{DynamicResource BorderBrush}"
                   Background="{DynamicResource BackgroundBrush}" CornerRadius="8">
