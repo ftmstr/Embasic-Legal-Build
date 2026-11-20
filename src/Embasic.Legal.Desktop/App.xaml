@@ -43,8 +43,92 @@
         <StackPanel>
           <TextBlock FontSize="22" FontWeight="Bold" Text="Adli Hesaplama Merkezi"/>
           <TextBlock Margin="0,13,0,0" TextWrapping="Wrap" Text="Tarih karşılaştırması, tarihe gün/ay/yıl ekleme ve Gece Vakti için sol menüdeki araçları seçin."/>
-          <TextBlock Margin="0,15,0,0" TextWrapping="Wrap" Text="Diğer eski hesaplamalar sonraki turlarda C# motoruna aktarılacaktır."/>
+          <Button Margin="0,13,0,0" HorizontalAlignment="Left"
+                  Content="Adli Ceza ve Para Cezası — hesaplamaları aç"
+                  Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                  CommandParameter="penalty"/>
+          <TextBlock Margin="0,10,0,0" TextWrapping="Wrap"
+                     Text="Ceza oran hesabı, hapis/adlî para tutarı, manuel YDO ve eski TL dönüşümü yeniden eklendi. Sonuçlar matematiksel örnek olup bağlayıcı hukuki karar değildir."/>
         </StackPanel>
+      </DataTemplate>
+      <DataTemplate DataType="{x:Type vm:PenaltyMoneyViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="780">
+          <StackPanel MaxWidth="770" HorizontalAlignment="Left">
+            <TextBlock FontSize="23" FontWeight="Bold" Text="Adli Ceza ve Para Cezası"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,7,0,14"
+                       Text="Eski v1.5 hesaplamalarının gerçek C# / WPF karşılığı. Yalnız aritmetik; hüküm, TCK 50/52 dönüştürme izni, 61. madde uygulaması, infaz ve lehe kanun otomatik onaylanmaz."/>
+            <TabControl SelectedIndex="{Binding SelectedTab, Mode=TwoWay}">
+              <TabItem Header="Ceza oran hesaplama">
+                <StackPanel Margin="12" >
+                  <TextBlock FontSize="17" FontWeight="Bold" Text="Ceza artırımı / indirimi"/>
+                  <TextBlock Text="Yalnız tam gün cinsinden başlangıç süre" Margin="0,8,0,1"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding RatioDays}"/>
+                  <StackPanel Orientation="Horizontal">
+                    <StackPanel Margin="0,0,10,0">
+                      <TextBlock Text="Oran payı"/>
+                      <TextBox Width="105" Text="{Binding Numerator}"/>
+                    </StackPanel>
+                    <StackPanel>
+                      <TextBlock Text="Oran paydası"/>
+                      <TextBox Width="105" Text="{Binding Denominator}"/>
+                    </StackPanel>
+                  </StackPanel>
+                  <CheckBox Content="İndirim (işaretlenmezse artırım)" IsChecked="{Binding Reduction}"/>
+                  <Button HorizontalAlignment="Left" Content="Oransal hesapla"
+                          Command="{Binding CalculateRatioCommand}"/>
+                  <TextBlock Text="{Binding RatioResult}" TextWrapping="Wrap"
+                             FontSize="14" Margin="0,12,0,0"/>
+                  <TextBlock TextWrapping="Wrap" Margin="0,12,0,0"
+                             Text="Uyarı: Önceki HTML 1 yıl=12 ay, 1 ay=30 gün diye basit dönüştürüyordu. Hukuken yanlış günleştirmeyi önlemek için burada yıl/ay alanları kaldırıldı. Tam gün sayısı manuel doğrulanmalıdır."/>
+                </StackPanel>
+              </TabItem>
+              <TabItem Header="Hapis / para hesabı">
+                <StackPanel Margin="12">
+                  <TextBlock FontSize="17" FontWeight="Bold" Text="Hapis süresi / adlî para — aritmetik"/>
+                  <TextBlock Text="Tam gün sayısı (mahkeme/kanun belirlemesi değildir)" Margin="0,8,0,1"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding FineDays}"/>
+                  <TextBlock Text="Bir gün karşılığı tutar (TL), manuel" Margin="0,7,0,1"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding DailyAmount}"/>
+                  <TextBlock Text="Eklenecek diğer tutar (TL), isteğe bağlı" Margin="0,7,0,1"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding AdditionalAmount}"/>
+                  <TextBlock Text="Suç tarihi (gg.aa.yyyy) — yalnız tarihsel uyarı" Margin="0,7,0,1"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding CrimeDate}"/>
+                  <Button HorizontalAlignment="Left" Content="Para tutarını matematiksel hesapla"
+                          Command="{Binding CalculateFineCommand}"/>
+                  <TextBlock Text="{Binding FineResult}" TextWrapping="Wrap" Margin="0,10,0,4"/>
+                  <TextBlock Text="{Binding HistoricRateNote}" TextWrapping="Wrap"/>
+                  <TextBlock TextWrapping="Wrap" Margin="0,12,0,0"
+                             Text="TCK 52/2 1.06.2024 öncesi 20–100 TL, 7499 m.9 ve m.40 ile sonrası 100–500 TL. Bu yalnız norm değişikliği uyarısıdır. TCK 7 lehe kanun, özel suç sınırı, TCK 50 çevrilebilirlik ve mahkeme takdiri ayrıca incelenmelidir."/>
+                </StackPanel>
+              </TabItem>
+              <TabItem Header="YDO / para dönüşümü">
+                <StackPanel Margin="12">
+                  <TextBlock FontSize="17" FontWeight="Bold" Text="Yeniden değerleme oranı — manuel bileşik matematik"/>
+                  <TextBlock Text="Başlangıç TL" Margin="0,8,0,1"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding RevalueBase}"/>
+                  <TextBlock Text="Yıllık oranlar (%) — noktalı virgülle ayır: 43,93; 25,49"
+                             TextWrapping="Wrap" Margin="0,7,0,1"/>
+                  <TextBox Width="310" HorizontalAlignment="Left" Text="{Binding RevalueRates}"/>
+                  <TextBlock Text="Oranların tebliğ/kaynak referansı (manuel, doğrulanmaz)"
+                             TextWrapping="Wrap" Margin="0,7,0,1"/>
+                  <TextBox Width="410" HorizontalAlignment="Left" MaxLength="180"
+                           Text="{Binding RateReference}"/>
+                  <Button Content="Bileşik tutarı hesapla" HorizontalAlignment="Left"
+                          Command="{Binding CalculateRevalueCommand}"/>
+                  <TextBlock Text="{Binding RevalueResult}" TextWrapping="Wrap" Margin="0,10,0,10"/>
+                  <TextBlock Text="2005 öncesi eski TL (1.000.000 eski TL = 1 TL)" TextWrapping="Wrap"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding OldLira}"/>
+                  <Button Content="Eski TL'yi TL birimine çevir" HorizontalAlignment="Left"
+                          Command="{Binding ConvertOldLiraCommand}"/>
+                  <TextBlock TextWrapping="Wrap" Margin="0,8,0,0"
+                             Text="YDO oranları otomatik alınmaz ve adlî para cezasına otomatik artırma uygulanmaz. Sonuç hukuki yuvarlama veya mevzuat limiti içermez."/>
+                </StackPanel>
+              </TabItem>
+            </TabControl>
+            <Button Content="Açık sekmenin sonuç metnini kopyala" Margin="0,14,0,0"
+                    HorizontalAlignment="Left" Command="{Binding CopyResultCommand}"/>
+          </StackPanel>
+        </ScrollViewer>
       </DataTemplate>
       <DataTemplate DataType="{x:Type vm:DateRangeViewModel}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
