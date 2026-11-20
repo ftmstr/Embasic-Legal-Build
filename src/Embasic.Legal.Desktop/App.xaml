@@ -324,6 +324,10 @@
                                    Text="Danıştay Kararları — Kanıt Düzeyi Defteri"/>
                         <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,6"
                                    Text="2007 kararının dergide yayımlanan METNİ bulundu; bu Danıştay imzalı/resmî asıl suret değildir. 2012 onaması ve 2025 YD için yalnız ikincil kayıt var. m.8(c) ile m.27 iptal edilmiş gibi gösterilmez."/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" FontWeight="Bold" Margin="0,4,0,4"
+                                   Text="{Binding OfficialCourtOriginalStatus}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Text="{Binding OfficialCourtSearchPortal}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Text="{Binding OfficialCourtDocketPortal}"/>
                         <ItemsControl ItemsSource="{Binding CourtDecisions}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate>

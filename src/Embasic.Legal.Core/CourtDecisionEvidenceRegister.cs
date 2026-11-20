@@ -42,6 +42,15 @@ public sealed record CourtEvidenceAssessment(
 
 public static class CourtDecisionEvidenceRegister
 {
+    // The official portal is a *search entry point*, NOT proof that a specific
+    // decision's authenticated signed/original text has been retrieved.
+    public static string OfficialSearchPortalUrl => "https://karararama.danistay.gov.tr/";
+    public static string OfficialDocketPortalUrl => "https://dosyasorgulama.danistay.gov.tr/";
+    public static string OfficialOriginalStatus =>
+        "2007/948, 2012/1117 ve 2024/629 için tam, mahkeme kaynaklı kimliği teyit edilmiş karar aslı henüz edinilmedi. " +
+        "Resmî arama portalının varlığı, aranan kararın indirildiğini veya yürürlük etkisinin doğrulandığını göstermez.";
+    public static bool AllOfficialOriginalsRetrievedAndVerified => false;
+
     // Decision text (not official court-supplied PDF) reproduced in a professional publication.
     // Decision's dispositive part rejects cancellation requests concerning Art.8(c) and Art.27;
     // it is WRONG to label those provisions annulled by this decision.
@@ -105,6 +114,13 @@ public sealed record SeizureDocumentAudit(
 {
     public bool EvidenceAuthenticityVerified => false;
     public bool StatutoryComplianceVerified => false;
+    // Even if every document reference is provided, a mechanical 24/48-hour
+    // exceedance or missing timeline remains an explicit manual review flag.
+    public bool MechanicalTimeAlert =>
+        Clock.SubmittedWithin24h is MechanicalDeadlineResult.ExceedsReferenceWindow or
+            MechanicalDeadlineResult.ChronologyConflict or MechanicalDeadlineResult.MissingEvidence ||
+        Clock.JudgeDecisionWithin48h is MechanicalDeadlineResult.ExceedsReferenceWindow or
+            MechanicalDeadlineResult.ChronologyConflict or MechanicalDeadlineResult.MissingEvidence;
 }
 
 public static class SeizureDocumentGate
@@ -122,9 +138,16 @@ public static class SeizureDocumentGate
                         inputs.JudgeDecidedAt.HasValue && missing == 0 &&
                         compare.SubmittedWithin24h != MechanicalDeadlineResult.ChronologyConflict &&
                         compare.JudgeDecisionWithin48h != MechanicalDeadlineResult.ChronologyConflict;
+        bool timeAlert = compare.SubmittedWithin24h != MechanicalDeadlineResult.WithinReferenceWindow ||
+                         compare.JudgeDecisionWithin48h != MechanicalDeadlineResult.WithinReferenceWindow;
         string warning = missing > 0
             ? $"{missing} belge için referans girilmedi. Zaman hesabı resmî evrakla doğrulanmış sayılamaz."
             : "Belge referansları yalnız kullanıcı beyanıdır; özgün evrak, imza ve kayıt saatleri doğrulanmadı.";
+        if (timeAlert)
+            warning += " DİKKAT: 24/48 saat mekanik aralığında eksik, kronoloji çelişkisi veya aşım riski; " +
+                       "bu verilerle hukuki zaman uygunluğu kararı YASAK.";
+        else
+            warning += " Mekanik zaman aralığı içinde görünmek hukuki süreye uyulduğunun kanıtı değildir.";
         return new(compare, missing, complete, warning);
     }
 }
