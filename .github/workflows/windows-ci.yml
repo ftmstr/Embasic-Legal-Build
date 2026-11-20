@@ -44,7 +44,20 @@ jobs:
       - name: Package manual offline Windows UAT collector
         shell: pwsh
         run: |
-          Copy-Item -LiteralPath 'tools/TUR007-Windows-UAT.ps1' -Destination 'dist/EmbasicLegal/TUR007-Windows-UAT.ps1'
+          Copy-Item -LiteralPath 'tools/TUR008-Windows-UAT.ps1' -Destination 'dist/EmbasicLegal/TUR008-Windows-UAT.ps1'
+      - name: Static WPF and UAT syntax checks (NOT a physical GUI test)
+        shell: pwsh
+        run: |
+          $parseErrors = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile('tools/TUR008-Windows-UAT.ps1',[ref]$tokens,[ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) { throw "PowerShell parser rejected UAT: $($parseErrors.Count)" }
+          [xml]$screen = Get-Content 'src/Embasic.Legal.Desktop/App.xaml' -Raw
+          $raw = $screen.OuterXml
+          foreach ($marker in @('PenaltyMoneyViewModel','Ceza oran hesaplama','Hapis / para hesabı','YDO / para dönüşümü','SystematicsPage','Gece Vakti','SeizureTime')) {
+            if (-not $raw.Contains($marker)) { throw "WPF source marker absent: $marker" }
+          }
+          Write-Host 'Static UI and UAT parser gates PASS; physical GUI test NOT_RUN.'
       - name: SHA-256 evidence
         shell: pwsh
         run: |
@@ -58,6 +71,6 @@ jobs:
             } | Set-Content -Encoding utf8 dist/EmbasicLegal/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Embasic-Legal-TUR007-Windows-Alpha-NOT-FINAL
+          name: Embasic-Legal-TUR008-Windows-Alpha-NOT-FINAL
           path: dist/EmbasicLegal/
           if-no-files-found: error

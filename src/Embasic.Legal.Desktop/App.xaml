@@ -62,15 +62,15 @@
                 <StackPanel Margin="12" >
                   <TextBlock FontSize="17" FontWeight="Bold" Text="Ceza artırımı / indirimi"/>
                   <TextBlock Text="Yalnız tam gün cinsinden başlangıç süre" Margin="0,8,0,1"/>
-                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding RatioDays}"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding RatioDays, UpdateSourceTrigger=PropertyChanged}"/>
                   <StackPanel Orientation="Horizontal">
                     <StackPanel Margin="0,0,10,0">
                       <TextBlock Text="Oran payı"/>
-                      <TextBox Width="105" Text="{Binding Numerator}"/>
+                      <TextBox Width="105" Text="{Binding Numerator, UpdateSourceTrigger=PropertyChanged}"/>
                     </StackPanel>
                     <StackPanel>
                       <TextBlock Text="Oran paydası"/>
-                      <TextBox Width="105" Text="{Binding Denominator}"/>
+                      <TextBox Width="105" Text="{Binding Denominator, UpdateSourceTrigger=PropertyChanged}"/>
                     </StackPanel>
                   </StackPanel>
                   <CheckBox Content="İndirim (işaretlenmezse artırım)" IsChecked="{Binding Reduction}"/>
@@ -86,13 +86,13 @@
                 <StackPanel Margin="12">
                   <TextBlock FontSize="17" FontWeight="Bold" Text="Hapis süresi / adlî para — aritmetik"/>
                   <TextBlock Text="Tam gün sayısı (mahkeme/kanun belirlemesi değildir)" Margin="0,8,0,1"/>
-                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding FineDays}"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding FineDays, UpdateSourceTrigger=PropertyChanged}"/>
                   <TextBlock Text="Bir gün karşılığı tutar (TL), manuel" Margin="0,7,0,1"/>
-                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding DailyAmount}"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding DailyAmount, UpdateSourceTrigger=PropertyChanged}"/>
                   <TextBlock Text="Eklenecek diğer tutar (TL), isteğe bağlı" Margin="0,7,0,1"/>
-                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding AdditionalAmount}"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding AdditionalAmount, UpdateSourceTrigger=PropertyChanged}"/>
                   <TextBlock Text="Suç tarihi (gg.aa.yyyy) — yalnız tarihsel uyarı" Margin="0,7,0,1"/>
-                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding CrimeDate}"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding CrimeDate, UpdateSourceTrigger=PropertyChanged}"/>
                   <Button HorizontalAlignment="Left" Content="Para tutarını matematiksel hesapla"
                           Command="{Binding CalculateFineCommand}"/>
                   <TextBlock Text="{Binding FineResult}" TextWrapping="Wrap" Margin="0,10,0,4"/>
@@ -105,19 +105,19 @@
                 <StackPanel Margin="12">
                   <TextBlock FontSize="17" FontWeight="Bold" Text="Yeniden değerleme oranı — manuel bileşik matematik"/>
                   <TextBlock Text="Başlangıç TL" Margin="0,8,0,1"/>
-                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding RevalueBase}"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding RevalueBase, UpdateSourceTrigger=PropertyChanged}"/>
                   <TextBlock Text="Yıllık oranlar (%) — noktalı virgülle ayır: 43,93; 25,49"
                              TextWrapping="Wrap" Margin="0,7,0,1"/>
-                  <TextBox Width="310" HorizontalAlignment="Left" Text="{Binding RevalueRates}"/>
+                  <TextBox Width="310" HorizontalAlignment="Left" Text="{Binding RevalueRates, UpdateSourceTrigger=PropertyChanged}"/>
                   <TextBlock Text="Oranların tebliğ/kaynak referansı (manuel, doğrulanmaz)"
                              TextWrapping="Wrap" Margin="0,7,0,1"/>
                   <TextBox Width="410" HorizontalAlignment="Left" MaxLength="180"
-                           Text="{Binding RateReference}"/>
+                           Text="{Binding RateReference, UpdateSourceTrigger=PropertyChanged}"/>
                   <Button Content="Bileşik tutarı hesapla" HorizontalAlignment="Left"
                           Command="{Binding CalculateRevalueCommand}"/>
                   <TextBlock Text="{Binding RevalueResult}" TextWrapping="Wrap" Margin="0,10,0,10"/>
                   <TextBlock Text="2005 öncesi eski TL (1.000.000 eski TL = 1 TL)" TextWrapping="Wrap"/>
-                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding OldLira}"/>
+                  <TextBox Width="180" HorizontalAlignment="Left" Text="{Binding OldLira, UpdateSourceTrigger=PropertyChanged}"/>
                   <Button Content="Eski TL'yi TL birimine çevir" HorizontalAlignment="Left"
                           Command="{Binding ConvertOldLiraCommand}"/>
                   <TextBlock TextWrapping="Wrap" Margin="0,8,0,0"
@@ -324,6 +324,10 @@
                                    Text="Danıştay Kararları — Kanıt Düzeyi Defteri"/>
                         <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,6"
                                    Text="2007 kararının dergide yayımlanan METNİ bulundu; bu Danıştay imzalı/resmî asıl suret değildir. 2012 onaması ve 2025 YD için yalnız ikincil kayıt var. m.8(c) ile m.27 iptal edilmiş gibi gösterilmez."/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" FontWeight="Bold" Margin="0,4,0,4"
+                                   Text="{Binding OfficialCourtOriginalStatus}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Text="{Binding OfficialCourtSearchPortal}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Text="{Binding OfficialCourtDocketPortal}"/>
                         <ItemsControl ItemsSource="{Binding CourtDecisions}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate>

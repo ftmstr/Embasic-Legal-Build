@@ -40,6 +40,9 @@ public sealed class SystematicsPage : ObservableViewModel
     public IReadOnlyList<NormDispute> NormRisks => IsSearch ? AdliSearchNormGate.Risks : [];
     public IReadOnlyList<CourtDecisionEvidence> CourtDecisions =>
         IsSearch ? CourtDecisionEvidenceRegister.Entries : [];
+    public string OfficialCourtSearchPortal => CourtDecisionEvidenceRegister.OfficialSearchPortalUrl;
+    public string OfficialCourtDocketPortal => CourtDecisionEvidenceRegister.OfficialDocketPortalUrl;
+    public string OfficialCourtOriginalStatus => CourtDecisionEvidenceRegister.OfficialOriginalStatus;
     private string _seizureEvidence = "", _submissionEvidence = "", _decisionEvidence = "";
     private string _evidenceSummary = "Özgün evraklar uygulama tarafından doğrulanmadı.";
     public string SeizureEvidence
