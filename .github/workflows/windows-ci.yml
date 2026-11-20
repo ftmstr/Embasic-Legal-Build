@@ -44,7 +44,7 @@ jobs:
       - name: Package manual offline Windows UAT collector
         shell: pwsh
         run: |
-          Copy-Item -LiteralPath 'tools/TUR006-Windows-UAT.ps1' -Destination 'dist/EmbasicLegal/TUR006-Windows-UAT.ps1'
+          Copy-Item -LiteralPath 'tools/TUR007-Windows-UAT.ps1' -Destination 'dist/EmbasicLegal/TUR007-Windows-UAT.ps1'
       - name: SHA-256 evidence
         shell: pwsh
         run: |
@@ -58,6 +58,6 @@ jobs:
             } | Set-Content -Encoding utf8 dist/EmbasicLegal/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Embasic-Legal-TUR006-Windows-Alpha-NOT-FINAL
+          name: Embasic-Legal-TUR007-Windows-Alpha-NOT-FINAL
           path: dist/EmbasicLegal/
           if-no-files-found: error

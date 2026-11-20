@@ -38,13 +38,77 @@ public sealed class SystematicsPage : ObservableViewModel
     public IReadOnlyList<ProceduralCheck> Steps => Workflow.Checks;
     public bool IsSearch => Workflow.Key == "search";
     public IReadOnlyList<NormDispute> NormRisks => IsSearch ? AdliSearchNormGate.Risks : [];
+    public IReadOnlyList<CourtDecisionEvidence> CourtDecisions =>
+        IsSearch ? CourtDecisionEvidenceRegister.Entries : [];
+    private string _seizureEvidence = "", _submissionEvidence = "", _decisionEvidence = "";
+    private string _evidenceSummary = "Özgün evraklar uygulama tarafından doğrulanmadı.";
+    public string SeizureEvidence
+    {
+        get => _seizureEvidence;
+        set { _seizureEvidence = value; Changed(); InvalidateClock(); }
+    }
+    public string SubmissionEvidence
+    {
+        get => _submissionEvidence;
+        set { _submissionEvidence = value; Changed(); InvalidateClock(); }
+    }
+    public string DecisionEvidence
+    {
+        get => _decisionEvidence;
+        set { _decisionEvidence = value; Changed(); InvalidateClock(); }
+    }
+    public string EvidenceSummary
+    {
+        get => _evidenceSummary;
+        private set { _evidenceSummary = value; Changed(); }
+    }
     private string _eventDate = "", _seizure = "", _submission = "", _decision = "";
     private string _normSummary = AdliSearchNormGate.Assess(null).Summary;
     private string _clockSummary = "CMK 127/3 belge saatleri girilmedi; hukuki sonuç üretilmedi.";
-    public string EventDate { get => _eventDate; set { _eventDate = value; Changed(); } }
-    public string SeizureTime { get => _seizure; set { _seizure = value; Changed(); } }
-    public string SubmissionTime { get => _submission; set { _submission = value; Changed(); } }
-    public string DecisionTime { get => _decision; set { _decision = value; Changed(); } }
+    public string EventDate
+    {
+        get => _eventDate;
+        set
+        {
+            if (_eventDate == value) return;
+            _eventDate = value;
+            Changed();
+            NormSummary = "Olay tarihi değişti; önceki değerlendirme geçersiz. Yeniden inceleyin.";
+        }
+    }
+    public string SeizureTime
+    {
+        get => _seizure;
+        set
+        {
+            if (_seizure == value) return;
+            _seizure = value;
+            Changed();
+            InvalidateClock();
+        }
+    }
+    public string SubmissionTime
+    {
+        get => _submission;
+        set
+        {
+            if (_submission == value) return;
+            _submission = value;
+            Changed();
+            InvalidateClock();
+        }
+    }
+    public string DecisionTime
+    {
+        get => _decision;
+        set
+        {
+            if (_decision == value) return;
+            _decision = value;
+            Changed();
+            InvalidateClock();
+        }
+    }
     public string NormSummary { get => _normSummary; private set { _normSummary = value; Changed(); } }
     public string ClockSummary { get => _clockSummary; private set { _clockSummary = value; Changed(); } }
     public ICommand ReviewNormCommand { get; }
@@ -61,7 +125,10 @@ public sealed class SystematicsPage : ObservableViewModel
         (IsSearch && (!string.IsNullOrWhiteSpace(EventDate) ||
         !string.IsNullOrWhiteSpace(SeizureTime) ||
         !string.IsNullOrWhiteSpace(SubmissionTime) ||
-        !string.IsNullOrWhiteSpace(DecisionTime))) || Rows.Any(r =>
+        !string.IsNullOrWhiteSpace(DecisionTime) ||
+        !string.IsNullOrWhiteSpace(SeizureEvidence) ||
+        !string.IsNullOrWhiteSpace(SubmissionEvidence) ||
+        !string.IsNullOrWhiteSpace(DecisionEvidence))) || Rows.Any(r =>
         r.State != ProceduralEvidenceState.NotReviewed || !string.IsNullOrWhiteSpace(r.Evrak));
     public string ReviewSummary {
         get {
@@ -89,6 +156,12 @@ public sealed class SystematicsPage : ObservableViewModel
         ReviewNormCommand = new RelayCommand(_ => ReviewNorm());
         CompareClockCommand = new RelayCommand(_ => CompareClock());
     }
+    private void InvalidateClock()
+    {
+        ClockSummary = "Belge/saat alanları değiştirildi. Önceki 24/48 saat hesabı GEÇERSİZ; yeniden karşılaştırın.";
+        EvidenceSummary = "Belge referansları ve saatler yeniden kontrol edilmeli. Evrak gerçekliği doğrulanmadı.";
+    }
+
     private void ReviewNorm()
     {
         if (!IsSearch) return;
@@ -98,8 +171,9 @@ public sealed class SystematicsPage : ObservableViewModel
             NormSummary = "Olay tarihi yyyy-MM-dd biçiminde değil veya eksik. Sürüm ve iptal/YD riski AÇIK.";
             return;
         }
-        NormSummary = AdliSearchNormGate.Assess(date).Summary +
-            " Kaynakları ve birincil karar metinlerini insan doğrulamalı; resmî tamlık PASS yok.";
+        NormSummary = AdliSearchNormGate.Assess(date).Summary + " " +
+            CourtDecisionEvidenceRegister.Assess(date).Warning +
+            " Asıl karar sureti ve sonradan oluşan norm değişikliği insan tarafından doğrulanmalı.";
     }
 
     private void CompareClock()
@@ -121,7 +195,13 @@ public sealed class SystematicsPage : ObservableViewModel
             ClockSummary = "Geçersiz tarih-saat; açık UTC farkı zorunlu (örn. 2026-11-20T14:30+03:00). Hesap YOK.";
             return;
         }
-        ClockSummary = SeizureClockAudit.Compare(start, submitted, decided).Summary;
+        var examination = SeizureDocumentGate.Examine(new SeizureDocumentInputs(
+            start, SeizureEvidence, submitted, SubmissionEvidence, decided, DecisionEvidence));
+        ClockSummary = examination.Clock.Summary;
+        EvidenceSummary = examination.Warning +
+            (examination.DocumentMetadataComplete
+                ? " Kullanıcı beyanı alanları tamamlandı; belgenin gerçekliği ONAYLI DEĞİL."
+                : " Eksik/kronoloji çelişkili alanlar açık.");
     }
 
     private void Show(bool diagram) { ShowDiagram = diagram; ShowAudit = !diagram; }
@@ -138,8 +218,12 @@ public sealed class SystematicsPage : ObservableViewModel
             SeizureTime = "";
             SubmissionTime = "";
             DecisionTime = "";
+            SeizureEvidence = "";
+            SubmissionEvidence = "";
+            DecisionEvidence = "";
             NormSummary = AdliSearchNormGate.Assess(null).Summary;
             ClockSummary = "CMK 127/3 belge saatleri girilmedi; hukuki sonuç üretilmedi.";
+            EvidenceSummary = "Evrak kanıtları sıfırlandı; orijinal kaynak doğrulaması yapılmadı.";
         }
         Message = "Geçici kontroller temizlendi; otomatik hukuki karar yok.";
     }
@@ -159,6 +243,10 @@ public sealed class SystematicsPage : ObservableViewModel
             b.AppendLine("Kullanıcı tarafından girilen olay tarihi: " + EventDate);
             b.AppendLine("Norm riski: " + NormSummary);
             b.AppendLine("CMK127/3 saat aritmetiği: " + ClockSummary);
+            b.AppendLine("Kullanıcı belge referansı / elkoyma: " + SeizureEvidence);
+            b.AppendLine("Kullanıcı belge referansı / hâkime sunma: " + SubmissionEvidence);
+            b.AppendLine("Kullanıcı belge referansı / hâkim kararı: " + DecisionEvidence);
+            b.AppendLine("Belge doğrulama uyarısı: " + EvidenceSummary);
             b.AppendLine("RESMÎ METİN / BİRİNCİL KARAR / HUKUKİ UYGUNLUK ONAYI: YOK");
         }
         foreach (var item in Rows) {

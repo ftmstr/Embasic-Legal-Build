@@ -236,6 +236,28 @@
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <TextBlock Margin="0,11,0,4" FontWeight="Bold" FontSize="15"
+                                   Text="Danıştay Kararları — Kanıt Düzeyi Defteri"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,6"
+                                   Text="2007 kararının dergide yayımlanan METNİ bulundu; bu Danıştay imzalı/resmî asıl suret değildir. 2012 onaması ve 2025 YD için yalnız ikincil kayıt var. m.8(c) ile m.27 iptal edilmiş gibi gösterilmez."/>
+                        <ItemsControl ItemsSource="{Binding CourtDecisions}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Margin="0,3,0,7" Padding="8"
+                                      Background="{DynamicResource BackgroundBrush}"
+                                      BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" CornerRadius="6">
+                                <StackPanel>
+                                  <TextBlock Text="{Binding DecisionIdentity}" FontWeight="Bold" TextWrapping="Wrap"/>
+                                  <TextBlock Text="{Binding RecordedDisposition}" TextWrapping="Wrap"/>
+                                  <TextBlock Text="{Binding Publication}" FontSize="11" TextWrapping="Wrap"/>
+                                  <TextBlock Text="{Binding Level}" FontSize="11"/>
+                                  <TextBlock Text="{Binding OutstandingVerification}" FontSize="11" TextWrapping="Wrap"/>
+                                  <TextBlock Text="{Binding SourceUrl}" FontSize="11" TextWrapping="Wrap"/>
+                                </StackPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <TextBlock Margin="0,6,0,2" Text="Olay tarihi — yyyy-MM-dd (manuel norm incelemesi)"/>
                         <TextBox Width="235" MaxLength="10" HorizontalAlignment="Left"
                                  Text="{Binding EventDate, UpdateSourceTrigger=PropertyChanged}"/>
@@ -255,9 +277,21 @@
                         <TextBlock Margin="0,7,0,2" Text="Hâkim kararının açıklanma anı"/>
                         <TextBox Width="320" MaxLength="26" HorizontalAlignment="Left"
                                  Text="{Binding DecisionTime, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Margin="0,10,0,2" Text="Elkoyma evrakı — yalnız KİMLİKSİZ referans"/>
+                        <TextBox Width="320" MaxLength="96" HorizontalAlignment="Left"
+                                 Text="{Binding SeizureEvidence, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Margin="0,5,0,2" Text="Hâkime sunma evrakı — yalnız KİMLİKSİZ referans"/>
+                        <TextBox Width="320" MaxLength="96" HorizontalAlignment="Left"
+                                 Text="{Binding SubmissionEvidence, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Margin="0,5,0,2" Text="Hâkim kararı evrakı — yalnız KİMLİKSİZ referans"/>
+                        <TextBox Width="320" MaxLength="96" HorizontalAlignment="Left"
+                                 Text="{Binding DecisionEvidence, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Margin="0,7,0,4" TextWrapping="Wrap" FontSize="11"
+                                   Text="Evrakın resmî kaydı/imzası programca doğrulanmaz. Kaynaklar ve içerik hiçbir yere otomatik aktarılmaz."/>
                         <Button Margin="0,7,0,5" Content="Saatleri Aritmetik Karşılaştır"
                                 HorizontalAlignment="Left" Command="{Binding CompareClockCommand}"/>
                         <TextBlock Text="{Binding ClockSummary}" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding EvidenceSummary}" TextWrapping="Wrap" Margin="0,5,0,0"/>
                       </StackPanel>
                     </Border>
                   </StackPanel>
