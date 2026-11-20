@@ -60,7 +60,9 @@ public sealed class Tur004EncryptedNoteTests
                 EncryptedArticleNotes.RestoreFrom(backup, path, "Incorrect-Long-Password-123"));
             using (var vault = new EncryptedArticleNotes(path, Password))
                 Assert.Equal("Yedek sonrası sentetik not", vault.Get(Sample)?.Text);
-            EncryptedArticleNotes.RestoreFrom(backup, path, Password);
+            // TUR012: explicit test consent is necessary to roll back newer notes.
+            EncryptedArticleNotes.RestoreFrom(backup, path, Password,
+                userConfirmedDataLoss: true);
             using (var vault = new EncryptedArticleNotes(path, Password))
                 Assert.Equal("Yedek öncesi sentetik not", vault.Get(Sample)?.Text);
             string rollback = path + ".pre-restore.sqlite3";

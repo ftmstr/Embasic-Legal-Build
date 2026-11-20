@@ -220,11 +220,100 @@ public sealed class EncryptedArticleNotes : IDisposable
     }
 
     /// <summary>
+    /// Read-only, content-free recovery assessment. Differences are computed
+    /// from authenticated encrypted rows, not from easily altered timestamps.
+    /// A snapshot fingerprint is NOT an anti-rollback trusted counter.
+    /// </summary>
+    public sealed record RestorePreview(
+        string BackupSha256,
+        string? TargetSha256,
+        int BackupNotes,
+        int TargetNotes,
+        int ChangedNotes,
+        int MissingFromBackup)
+    {
+        public bool WouldDiscardCurrentData => ChangedNotes > 0 || MissingFromBackup > 0;
+    }
+
+    private Dictionary<ArticleNoteKey, (string Id, string CipherHash)> AuthenticatedFingerprints()
+    {
+        if (!CheckIntegrity())
+            throw new InvalidDataException("Şifreli kasa içeriği doğrulanmadı; geri yükleme durduruldu.");
+        var output = new Dictionary<ArticleNoteKey, (string Id, string CipherHash)>();
+        _store.InspectAllRows(row =>
+        {
+            if (row.Key.LawNumber.StartsWith("__EMBASIC_", StringComparison.Ordinal))
+                return;
+            string cipherHash = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(row.Text)));
+            if (!output.TryAdd(row.Key, (row.Id, cipherHash)))
+                throw new InvalidDataException("Tekrarlanan not kimliği.");
+        });
+        return output;
+    }
+
+    private static string FileSha256(string path)
+    {
+        using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Does not change either file. Compares every authenticated note identity
+    /// and ciphertext in backup vs target. Modified or missing target notes
+    /// require a separate explicit confirmation before actual replacement.
+    /// </summary>
+    public static RestorePreview PreviewRestore(
+        string sourceBackup, string destination, string passphrase)
+    {
+        if (string.IsNullOrWhiteSpace(sourceBackup) || string.IsNullOrWhiteSpace(destination))
+            throw new ArgumentException("Yedek ve hedef yolu zorunludur.");
+        string backup = Path.GetFullPath(sourceBackup);
+        string target = Path.GetFullPath(destination);
+        if (string.Equals(backup, target, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Yedek ile hedef kasa aynı dosya olamaz.");
+        if (!File.Exists(backup))
+            throw new FileNotFoundException("Geri yükleme yedeği bulunamadı.", backup);
+
+        string backupHashBefore = FileSha256(backup);
+        using var source = new EncryptedArticleNotes(backup, passphrase);
+        var fromBackup = source.AuthenticatedFingerprints();
+        string backupHashAfter = FileSha256(backup);
+        if (backupHashBefore != backupHashAfter)
+            throw new IOException("Ön inceleme sırasında yedek değişti.");
+
+        if (!File.Exists(target))
+            return new RestorePreview(backupHashAfter, null,
+                fromBackup.Count, 0, 0, 0);
+
+        string targetHashBefore = FileSha256(target);
+        using var existing = new EncryptedArticleNotes(target, passphrase);
+        if (!existing._salt.AsSpan().SequenceEqual(source._salt))
+            throw new InvalidDataException("Yedek başka bir şifreli kasaya aittir.");
+        var current = existing.AuthenticatedFingerprints();
+        string targetHashAfter = FileSha256(target);
+        if (targetHashBefore != targetHashAfter)
+            throw new IOException("Ön inceleme sırasında mevcut kasa değişti.");
+        int missing = 0, changed = 0;
+        foreach (var (key, value) in current)
+        {
+            if (!fromBackup.TryGetValue(key, out var saved))
+                missing++;
+            else if (saved.Id != value.Id ||
+                     !string.Equals(saved.CipherHash, value.CipherHash, StringComparison.Ordinal))
+                changed++;
+        }
+        return new RestorePreview(backupHashAfter, targetHashAfter,
+            fromBackup.Count, current.Count, changed, missing);
+    }
+
+    /// <summary>
     /// Validate BOTH vaults with the supplied passphrase before replacing the target.
     /// No source-to-destination copy while the target is opened by this application.
     /// Keeps pre-restore rollback on success. No automatic plaintext migration.
     /// </summary>
-    public static string RestoreFrom(string sourceBackup, string destination, string passphrase)
+    public static string RestoreFrom(string sourceBackup, string destination, string passphrase,
+        bool userConfirmedDataLoss = false, RestorePreview? approvedPreview = null)
     {
         if (string.IsNullOrWhiteSpace(sourceBackup) || string.IsNullOrWhiteSpace(destination))
             throw new ArgumentException("Yedek ve hedef yolu zorunludur.");
@@ -233,6 +322,12 @@ public sealed class EncryptedArticleNotes : IDisposable
         if (string.Equals(backup, target, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Yedek hedef dosyanın kendisi olamaz.");
         if (!File.Exists(backup)) throw new FileNotFoundException("Yedek bulunamadı.", backup);
+        RestorePreview preview = PreviewRestore(backup, target, passphrase);
+        if (approvedPreview is not null && approvedPreview != preview)
+            throw new IOException("Onaydan sonra yedek veya mevcut kasa değişti; yeniden ön inceleme gerekli.");
+        if (preview.WouldDiscardCurrentData && !userConfirmedDataLoss)
+            throw new InvalidOperationException(
+                "Eski yedek mevcut notları değiştirecek veya silecek; açık kullanıcı onayı olmadan geri yükleme reddedildi.");
         byte[] originalSalt;
         using (var old = new EncryptedArticleNotes(backup, passphrase))
         {
@@ -255,22 +350,33 @@ public sealed class EncryptedArticleNotes : IDisposable
         string staged = target + "." + Guid.NewGuid().ToString("N") + ".restore.tmp";
         try
         {
+            if (FileSha256(backup) != preview.BackupSha256)
+                throw new IOException("Yedek doğrulama ile kopyalama arasında değişti.");
             File.Copy(backup, staged);
+            if (FileSha256(staged) != preview.BackupSha256)
+                throw new IOException("Geçici kopya SHA-256 doğrulamasında uyuşmazlık.");
             using (var verify = new EncryptedArticleNotes(staged, passphrase))
             {
                 if (!verify._salt.AsSpan().SequenceEqual(originalSalt) || !verify.CheckIntegrity())
                     throw new InvalidDataException("Geri yükleme kopyası doğrulanamadı.");
             }
 
-            if (File.Exists(target))
+            if (preview.TargetSha256 is not null)
             {
+                if (!File.Exists(target) || FileSha256(target) != preview.TargetSha256)
+                    throw new IOException("Hedef kasa onaydan sonra değişti; geri yükleme reddedildi.");
                 string rollback = target + ".pre-restore.sqlite3";
                 // If rollback exists, refuse overwriting the only prior recovery point.
                 if (File.Exists(rollback))
                     throw new IOException("Önceki geri alma yedeği mevcut; ezilmeyecek.");
                 File.Replace(staged, target, rollback);
             }
-            else File.Move(staged, target);
+            else
+            {
+                if (File.Exists(target))
+                    throw new IOException("Ön inceleme sonrası yeni hedef kasa oluştu; üzerine yazılmadı.");
+                File.Move(staged, target);
+            }
             return target;
         }
         finally
