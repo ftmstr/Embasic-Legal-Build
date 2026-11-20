@@ -354,6 +354,16 @@
                         <TextBlock Text="{Binding NormSummary}" TextWrapping="Wrap"/>
                         <TextBlock FontWeight="Bold" FontSize="15" Margin="0,12,0,5"
                                    Text="CMK 127/3 — Elkoyma 24/48 Saat Evrak Karşılaştırması"/>
+                        <TextBlock Margin="0,8,0,3" FontWeight="Bold" TextWrapping="Wrap"
+                                   Text="ÖN ŞART — Elkoyma önceden hâkim kararına mı dayanıyor?"/>
+                        <ComboBox Width="490" HorizontalAlignment="Left" MaxWidth="490"
+                                  ItemsSource="{Binding BasisOptions}"
+                                  DisplayMemberPath="Title" SelectedValuePath="Value"
+                                  SelectedValue="{Binding AuthorizationBasis, Mode=TwoWay}"
+                                  AutomationProperties.Name="CMK 127 önceki hâkim kararı dayanak seçimi"/>
+                        <TextBlock Margin="0,4,0,8" TextWrapping="Wrap" FontSize="11"
+                                   Text="Seçim yalnız kullanıcı beyanıdır. Dayanak belirsizse 24/48 saat hesabı bloke olur. Önceden hâkim kararı bildirildiğinde, kararsız elkoymaya özgü karşılaştırma uygulanmaz; özgün kararın kapsamı ayrıca incelenir."/>
+
                         <TextBlock TextWrapping="Wrap" FontSize="11"
                                    Text="Biçim: 2026-11-20T14:30+03:00. 24 saat hâkime sunma; 48 saat elkoymadan itibaren karar açıklama referansıdır. Sonuç yalnız aritmetiktir; gerçek belge veya hukuki uygunluk onayı değildir."/>
                         <TextBlock Margin="0,7,0,2" Text="Elkoyma anı"/>
