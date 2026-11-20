@@ -254,7 +254,7 @@ public sealed class EncryptedArticleNotes : IDisposable
 
     private static string FileSha256(string path)
     {
-        using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         return Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant();
     }
 

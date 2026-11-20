@@ -150,12 +150,32 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         if (dialog.ShowDialog() != true) return;
         try
         {
-            EncryptedArticleNotes.RestoreFrom(dialog.FileName,
-                EncryptedArticleNotes.DefaultDatabasePath, pass);
-            Status = "Geri yükleme bütünlük ve parola doğrulamasından geçti. Açmak için parolayı tekrar girin.";
+            var preview = EncryptedArticleNotes.PreviewRestore(
+                dialog.FileName, EncryptedArticleNotes.DefaultDatabasePath, pass);
+            bool destructive = preview.WouldDiscardCurrentData;
+            string warning = destructive
+                ? $"DİKKAT: Bu yedek mevcut kasadaki {preview.ChangedNotes} notun içeriğini değiştirecek, " +
+                  $"{preview.MissingFromBackup} yeni not yedekte olmadığından kaybolacak. " +
+                  "Geri alma dosyası korunacak. Bu veri kaybını AÇIKÇA onaylıyor musunuz?"
+                : $"Yedekte {preview.BackupNotes} not; mevcut kasada {preview.TargetNotes} not var. " +
+                  "Değişmiş veya yedekte eksik hedef not saptanmadı. Geri yüklensin mi?";
+            if (MessageBox.Show(warning,
+                    destructive ? "EMBASIC — AÇIK VERİ KAYBI ONAYI" : "EMBASIC — Yedek Ön İnceleme",
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            {
+                Status = "Geri yükleme reddedildi; mevcut kasa korunuyor.";
+                return;
+            }
+            EncryptedArticleNotes.RestoreFrom(
+                dialog.FileName, EncryptedArticleNotes.DefaultDatabasePath, pass,
+                userConfirmedDataLoss: destructive, approvedPreview: preview);
+            Status = destructive
+                ? "Kullanıcı onaylı geri dönüş tamamlandı; önceki kasa .pre-restore.sqlite3 olarak korundu."
+                : "Yedek başarıyla doğrulanıp geri yüklendi.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
-            or SqliteException or CryptographicException or ArgumentException or FormatException)
+            or SqliteException or CryptographicException or ArgumentException or FormatException
+            or InvalidOperationException)
         {
             Status = "Geri yükleme reddedildi. Mevcut kasa korundu: " + ex.Message;
         }
