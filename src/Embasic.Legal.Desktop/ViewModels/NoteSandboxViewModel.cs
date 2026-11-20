@@ -43,6 +43,8 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         RestoreCommand = new RelayCommand(parameter => Restore(parameter as PasswordBox));
         LockCommand = new RelayCommand(_ => Lock());
         ExportBackupCommand = new RelayCommand(_ => ExportBackup());
+        ExportWitnessCommand = new RelayCommand(_ => ExportWitness());
+        VerifyWitnessCommand = new RelayCommand(_ => VerifyWitness());
         PreviewLegacyCommand = new RelayCommand(_ => PreviewLegacy());
         ApplyLegacyCommand = new RelayCommand(_ => ApplyLegacy());
 
@@ -86,6 +88,8 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
     public ICommand RestoreCommand { get; }
     public ICommand LockCommand { get; }
     public ICommand ExportBackupCommand { get; }
+    public ICommand ExportWitnessCommand { get; }
+    public ICommand VerifyWitnessCommand { get; }
     public ICommand PreviewLegacyCommand { get; }
     public ICommand ApplyLegacyCommand { get; }
     public bool MigrationConsent
@@ -205,6 +209,64 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         }
     }
 
+
+    /// <summary>
+    /// User-selected standalone witness. This is not stored inside the vault
+    /// and is not silently refreshed on future edits. No note plaintext leaves.
+    /// </summary>
+    private void ExportWitness()
+    {
+        if (_store is null) { Status = "Bütünlük makbuzu için önce kasayı açın."; return; }
+        if (!FlushPending()) return;
+        var dialog = new SaveFileDialog
+        {
+            Title = "Bağımsız saklanacak şifreli kasa bütünlük makbuzu",
+            FileName = "embasic-vault-independent-witness.json",
+            DefaultExt = ".json",
+            Filter = "Bütünlük makbuzu (*.json)|*.json",
+            OverwritePrompt = true
+        };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            var receipt = _store.ExportIntegrityWitness(
+                dialog.FileName, userConfirmedOverwrite: true);
+            Status = $"Bütünlük makbuzu oluşturuldu ({receipt.NoteCount} not). " +
+                "Dosyayı kasa ve yedeğinden BAĞIMSIZ bir yerde saklayın. " +
+                "Notları sonraki düzenlemede yeni ayrı makbuz gerekir. " +
+                "Makbuz hukuki veya resmî tamlık onayı DEĞİLDİR.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or ArgumentException or InvalidDataException or CryptographicException)
+        {
+            Status = "Makbuz oluşturulamadı. Kasa değiştirilmedi: " + ex.Message;
+        }
+    }
+
+    private void VerifyWitness()
+    {
+        if (_store is null) { Status = "Makbuz doğrulamak için önce kasayı açın."; return; }
+        if (!FlushPending()) return;
+        var dialog = new OpenFileDialog
+        {
+            Title = "Kasadan ayrı saklanan önceki bütünlük makbuzunu seç",
+            Filter = "Bütünlük makbuzu (*.json)|*.json|Tüm dosyalar (*.*)|*.*",
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            bool matching = _store.VerifyIntegrityWitness(dialog.FileName);
+            Status = matching
+                ? "Makbuz eşleşiyor: mevcut notların şifreli verileri ve metadata bu bağımsız kayıtla uyumlu. Resmî veya tam anti-rollback PASS DEĞİL."
+                : "MAKBUZ UYUŞMUYOR: not silinmesi, güncelleme, metadata değişimi veya eski kasa ihtimali. Veri üzerine yazmayın; güvenli kopya alıp inceleyin.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or ArgumentException or InvalidDataException or CryptographicException)
+        {
+            Status = "Makbuz doğrulanamadı. Hiçbir veri değiştirilmedi: " + ex.Message;
+        }
+    }
 
     private void PreviewLegacy()
     {
