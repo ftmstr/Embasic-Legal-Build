@@ -227,6 +227,11 @@
               <TextBlock FontWeight="Bold" Text="Eski notları şifreli kasaya aktar (isteğe bağlı)"/>
               <TextBlock Margin="0,4,0,7" TextWrapping="Wrap" FontSize="11"
                          Text="Ön inceleme salt okunurdur. Aktarım için önce kasa açık, sonra onay kutusu ve ikinci onay gerekir. Eski veritabanı/yedekler düz metin olarak kalır."/>
+              <Button Content="Şifresiz eski dosya riskini salt-okunur denetle"
+                      HorizontalAlignment="Left"
+                      Command="{Binding AuditLegacyExposureCommand}"/>
+              <TextBlock Text="{Binding LegacyExposureStatus}" Margin="0,5,0,7"
+                         FontSize="11" TextWrapping="Wrap"/>
               <Button Content="Eski notları ön incele" HorizontalAlignment="Left"
                       Command="{Binding PreviewLegacyCommand}"/>
               <CheckBox Content="Şifreli kasaya aktarmayı açıkça onaylıyorum"
