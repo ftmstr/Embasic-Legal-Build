@@ -46,6 +46,7 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         ExportWitnessCommand = new RelayCommand(_ => ExportWitness());
         VerifyWitnessCommand = new RelayCommand(_ => VerifyWitness());
         PreviewLegacyCommand = new RelayCommand(_ => PreviewLegacy());
+        AuditLegacyExposureCommand = new RelayCommand(_ => AuditLegacyExposure());
         ApplyLegacyCommand = new RelayCommand(_ => ApplyLegacy());
 
         _debounce = new DispatcherTimer(DispatcherPriority.Background)
@@ -91,6 +92,15 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
     public ICommand ExportWitnessCommand { get; }
     public ICommand VerifyWitnessCommand { get; }
     public ICommand PreviewLegacyCommand { get; }
+    public ICommand AuditLegacyExposureCommand { get; }
+    private string _legacyExposureStatus =
+        "Düz metin kaynak envanteri yalnız bilinen yerel klasöre bakar; içerik veya dosya adı dışa aktarılmaz.";
+    public string LegacyExposureStatus
+    {
+        get => _legacyExposureStatus;
+        private set { _legacyExposureStatus = value; Changed(); }
+    }
+
     public ICommand ApplyLegacyCommand { get; }
     public bool MigrationConsent
     {
@@ -265,6 +275,35 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
             or ArgumentException or InvalidDataException or CryptographicException)
         {
             Status = "Makbuz doğrulanamadı. Hiçbir veri değiştirilmedi: " + ex.Message;
+        }
+    }
+
+    private void AuditLegacyExposure()
+    {
+        // No password, open vault, or personal case data required. The scanner
+        // never reads note text, changes ACL, deletes files, or walks a disk.
+        try
+        {
+            var inventory = LegacyPlaintextExposureAudit.ScanKnownLocalDirectory();
+            LegacyExposureStatus =
+                $"Salt-okunur yerel risk envanteri: {inventory.KnownCandidates} bilinen isimli dosya, " +
+                $"{inventory.PrimaryCandidates} eski ana kaynak, " +
+                $"{inventory.SidecarCandidates} WAL/SHM/journal yan dosyası, " +
+                $"{inventory.PotentialBackups} olası eski yedek. " +
+                $"SQLite başlık izi: {inventory.SQLiteHeaderMatches}, " +
+                $"aday toplam boyut: {inventory.TotalCandidateBytes} bayt, " +
+                $"incelenemeyen girdi: {inventory.UnexaminedEntries}. " +
+                (inventory.RequiresManualReview
+                    ? "RİSK: Eski şifresiz kaynak/yan dosyalar olabilir; parola ve soruşturma verisi GİRMEYİN. Hiçbir dosya silinmedi."
+                    : "Bilinen isimlerde aday yok. BU GÜVENLİK PASS DEĞİL; haricî, yeniden adlandırılmış veya başka klasördeki yedekler taranmadı.") +
+                " Kaynak göçü otomatik değildir; şifreli kasanın SQLite metadata alanları hâlâ açıktır.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or ArgumentException)
+        {
+            LegacyExposureStatus =
+                "Envanter tamamlanamadı (NOT_VERIFIED): " + ex.Message +
+                " Hiçbir dosya değiştirilmedi.";
         }
     }
 
