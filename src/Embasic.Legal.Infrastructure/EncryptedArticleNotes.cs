@@ -256,6 +256,7 @@ public sealed class EncryptedArticleNotes : IDisposable
         string destination = Path.GetFullPath(path);
         if (string.Equals(destination, _databasePath, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Makbuz kasa dosyasının üzerine yazılamaz.", nameof(path));
+        VaultArtifactRiskGates.RequireWitnessOutsideVaultDirectory(_databasePath, destination);
         if (File.Exists(destination) && !userConfirmedOverwrite)
             throw new IOException("Mevcut bütünlük makbuzu açık onay olmadan ezilemez.");
         string stamp = DateTimeOffset.UtcNow.ToString("O");
@@ -406,6 +407,8 @@ public sealed class EncryptedArticleNotes : IDisposable
             throw new ArgumentException("Yedek ile hedef kasa aynı dosya olamaz.");
         if (!File.Exists(backup))
             throw new FileNotFoundException("Geri yükleme yedeği bulunamadı.", backup);
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(backup);
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(target);
 
         string backupHashBefore = FileSha256(backup);
         using var source = new EncryptedArticleNotes(backup, passphrase);
@@ -418,6 +421,7 @@ public sealed class EncryptedArticleNotes : IDisposable
             return new RestorePreview(backupHashAfter, null,
                 fromBackup.Count, 0, 0, 0);
 
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(target);
         string targetHashBefore = FileSha256(target);
         using var existing = new EncryptedArticleNotes(target, passphrase);
         if (!existing._salt.AsSpan().SequenceEqual(source._salt))
@@ -454,6 +458,8 @@ public sealed class EncryptedArticleNotes : IDisposable
         if (string.Equals(backup, target, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Yedek hedef dosyanın kendisi olamaz.");
         if (!File.Exists(backup)) throw new FileNotFoundException("Yedek bulunamadı.", backup);
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(backup);
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(target);
         RestorePreview preview = PreviewRestore(backup, target, passphrase);
         if (approvedPreview is not null && approvedPreview != preview)
             throw new IOException("Onaydan sonra yedek veya mevcut kasa değişti; yeniden ön inceleme gerekli.");
@@ -493,6 +499,10 @@ public sealed class EncryptedArticleNotes : IDisposable
                     throw new InvalidDataException("Geri yükleme kopyası doğrulanamadı.");
             }
 
+            // A live/uncheckpointed WAL can make a main-file hash look unchanged
+            // while important rows remain in the sidecar. Refuse before replacement.
+            VaultArtifactRiskGates.RequireNoSqliteSidecars(backup);
+            VaultArtifactRiskGates.RequireNoSqliteSidecars(target);
             if (preview.TargetSha256 is not null)
             {
                 if (!File.Exists(target) || FileSha256(target) != preview.TargetSha256)

@@ -19,10 +19,11 @@ public sealed class Tur013IndependentWitnessTests
     {
         string dir = Root();
         Directory.CreateDirectory(dir);
+        Directory.CreateDirectory(Path.Combine(dir, "independent"));
         try
         {
             string db = Path.Combine(dir, "vault.sqlite3");
-            string external = Path.Combine(dir, "outside-vault.witness.json");
+            string external = Path.Combine(dir, "independent", "outside-vault.witness.json");
             using (var vault = new EncryptedArticleNotes(db, Pass))
             {
                 vault.Save(A, "SENTETİK ÖZEL İÇERİK BİR");
@@ -47,10 +48,11 @@ public sealed class Tur013IndependentWitnessTests
     {
         string dir = Root();
         Directory.CreateDirectory(dir);
+        Directory.CreateDirectory(Path.Combine(dir, "independent"));
         try
         {
             string db = Path.Combine(dir, "vault.sqlite3");
-            string external = Path.Combine(dir, "outside-vault.witness.json");
+            string external = Path.Combine(dir, "independent", "outside-vault.witness.json");
             using (var vault = new EncryptedArticleNotes(db, Pass))
             {
                 vault.Save(A, "SYNTHETIC FIRST");
@@ -74,11 +76,12 @@ public sealed class Tur013IndependentWitnessTests
     {
         string dir = Root();
         Directory.CreateDirectory(dir);
+        Directory.CreateDirectory(Path.Combine(dir, "independent"));
         try
         {
             string db = Path.Combine(dir, "vault.sqlite3");
             string oldBackup = Path.Combine(dir, "old.backup.sqlite3");
-            string external = Path.Combine(dir, "offline.witness.json");
+            string external = Path.Combine(dir, "independent", "offline.witness.json");
             using (var vault = new EncryptedArticleNotes(db, Pass))
             {
                 vault.Save(A, "OLD");
@@ -100,10 +103,11 @@ public sealed class Tur013IndependentWitnessTests
     {
         string dir = Root();
         Directory.CreateDirectory(dir);
+        Directory.CreateDirectory(Path.Combine(dir, "independent"));
         try
         {
             string db = Path.Combine(dir, "vault.sqlite3");
-            string external = Path.Combine(dir, "offline.witness.json");
+            string external = Path.Combine(dir, "independent", "offline.witness.json");
             using (var vault = new EncryptedArticleNotes(db, Pass))
             {
                 vault.Save(A, "RETAIN");
