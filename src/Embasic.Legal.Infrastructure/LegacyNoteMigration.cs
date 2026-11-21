@@ -31,7 +31,11 @@ public static class LegacyNoteMigration
         string path = ValidPath(legacyPath);
         string before = Hash(path);
         var data = LoadReadOnly(path);
+        // SQLite rollback journals can contain uncommitted plaintext not
+        // reflected in the primary-file SHA-256. Treat them just like WAL/SHM.
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(path);
         string after = Hash(path);
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(path);
         if (!before.Equals(after, StringComparison.OrdinalIgnoreCase))
             throw new IOException("Ön inceleme sırasında eski veritabanı değişti; aktarım reddedildi.");
         return new LegacyMigrationPreview(path, before, data.Count,
@@ -52,10 +56,12 @@ public static class LegacyNoteMigration
         if (!Hash(path).Equals(preview.SourceSha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Eski kaynak ön incelemeden sonra değişti.");
         var notes = LoadReadOnly(path);
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(path);
         if (notes.Count == 0 || notes.Count != preview.NoteCount ||
             notes.Sum(n => (long)Encoding.UTF8.GetByteCount(n.Text)) != preview.TotalUtf8Bytes ||
             !Hash(path).Equals(preview.SourceSha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Kaynak veya kapsam değişti; yeniden ön inceleme gerekir.");
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(path);
 
         foreach (var note in notes)
         {
@@ -65,8 +71,18 @@ public static class LegacyNoteMigration
 
         string backup = Path.GetFullPath(immutableBackupPath);
         if (File.Exists(backup)) throw new IOException("Önceki geri alma yedeği mevcut; ezilmeyecek.");
+        // Stop if a SQLite sidecar appeared before creating a rollback snapshot.
+        // No deletion/checkpoint: source data stays available for human inspection.
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(path);
         unlockedVault.BackupTo(backup);
         if (!File.Exists(backup)) throw new IOException("Şifreli geri alma yedeği oluşmadı.");
+
+        // The source is checked again after snapshotting target. This narrows but
+        // does NOT eliminate OS-level TOCTOU without a trusted file lock/snapshot.
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(path);
+        if (!Hash(path).Equals(preview.SourceSha256, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Geri alma yedeği sonrasında eski kaynak değişti; aktarım reddedildi.");
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(path);
 
         // The target INSERT is atomic and never upserts. Legacy file stays untouched.
         unlockedVault.ImportNewNotesAtomically(notes);
@@ -86,8 +102,10 @@ public static class LegacyNoteMigration
         var file = new FileInfo(full);
         if (!file.Exists || file.Length < 128 || file.Length > MaxDatabaseBytes)
             throw new InvalidDataException("Kaynak yok veya boyut sınırı dışında.");
-        if (File.Exists(full + "-wal") || File.Exists(full + "-shm"))
-            throw new InvalidDataException("Kaynağın WAL yan dosyaları var; canlı kaynak aktarımı reddedildi.");
+        // TUR017: -journal was previously omitted. Presence alone blocks the
+        // import, irrespective of primary SQLite file size or unchanged hash.
+        // Never delete or auto-checkpoint a source sidecar.
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(full);
         return full;
     }
 
@@ -108,6 +126,11 @@ public static class LegacyNoteMigration
         };
         using var connection = new SqliteConnection(cs.ToString());
         connection.Open();
+        using (var readOnly = connection.CreateCommand())
+        {
+            readOnly.CommandText = "PRAGMA query_only=ON;";
+            readOnly.ExecuteNonQuery();
+        }
         using (var integrity = connection.CreateCommand())
         {
             integrity.CommandText = "PRAGMA quick_check;";
