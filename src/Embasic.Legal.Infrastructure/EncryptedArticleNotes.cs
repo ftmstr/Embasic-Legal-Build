@@ -344,6 +344,9 @@ public sealed class EncryptedArticleNotes : IDisposable
         string destination = Path.GetFullPath(path);
         if (string.Equals(destination, _databasePath, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Kasa dosyası üzerine yedek alınamaz.", nameof(path));
+        // TUR018: never replace a SQLite main backup file while its WAL/SHM
+        // or rollback journal survives. A good standalone SHA is insufficient.
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(destination);
         // The existing complete backup MUST survive a corrupted SQLite/AES
         // snapshot. The actual destination is replaced only after an entirely
         // authenticated staged snapshot has passed validation.
@@ -354,6 +357,9 @@ public sealed class EncryptedArticleNotes : IDisposable
             using (var snapshotStore = new ArticleNoteStore(staging, readOnly: true))
                 if (!AuthenticateStore(snapshotStore))
                     throw new InvalidDataException("Yedek şifreli içerik doğrulaması başarısız.");
+            // Recheck after authenticated snapshot verification. This is
+            // non-destructive fail-closed, NOT a trusted filesystem lock.
+            VaultArtifactRiskGates.RequireNoSqliteSidecars(destination);
             File.Move(staging, destination, overwrite: true);
             return destination;
         }

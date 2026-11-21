@@ -172,6 +172,10 @@ public sealed class ArticleNoteStore : IDisposable
         if (string.Equals(fullPath, _databasePath, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Yedek kaynak veritabanının üzerine yazılamaz.", nameof(backupPath));
 
+        // TUR018: refuse a destination with unresolved SQLite WAL/SHM/journal
+        // instead of replacing the main file while sidecar pages survive.
+        // No deletion or automatic checkpoint of existing evidence.
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(fullPath);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         string temporary = fullPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
@@ -193,6 +197,9 @@ public sealed class ArticleNoteStore : IDisposable
                     throw new IOException("SQLite yedeği bütünlük kontrolünü geçemedi.");
             }
 
+            // A sidecar could have appeared while the snapshot was built.
+            // This closes an ordinary race window but is not OS-level locking.
+            VaultArtifactRiskGates.RequireNoSqliteSidecars(fullPath);
             // The previous complete backup survives failed temporary writes.
             File.Move(temporary, fullPath, overwrite: true);
             return fullPath;
