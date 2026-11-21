@@ -24,3 +24,7 @@ AYM E.2023/128 K.2026/36 12.02.2026; RG 25.05.2026/33264 listesinde yer alıyor.
 Danıştay 10. Daire E.2005/6392 K.2007/948; İDDK E.2007/2257 K.2012/1117 ve İDDK 23.01.2025 YD İtiraz 2024/629 kararları için Danıştay karararama portalı birincil karar aslına eşdeğer belge sağlamış değil: **original full decision NOT_VERIFIED**. Sonraki safahat ve yürürlük ayrıca açık.
 
 Eski notlar ve önceki iki tarih aracı / tek Gece Vakti / üç Sistematiği / Adli Ceza-Para-YDO / E-terazi / açık-koyu tema korunur. Hukuk veri tamlığı, lisans, fiziksel Windows UAT ve release **NO-GO**.
+
+## Kod düzeyinde olay tarihli özel norm incelemesi
+
+`src/Embasic.Legal.Core/Cmk7571SpecialNormGate.cs` m.22 için yalnız tam suç varyantları 142/2-e, 158/1-f, 158/1-l ve 245 ile **işlem tarihi** / olay tarihi ayrımını, m.26 için 25.12.2025 itibarıyla uzlaşma ve o tarihteki derdestlik belge durumunu salt mekanik inceler. Yayım günü uzlaşmasının gün içi kanıtı belirsiz tutulur. Ne CMK128/A izni ne Geçici 8 geçiş uygulanabilirliği otomatik PASS olabilir. `tests/Embasic.Legal.Tests/Tur015Cmk7571SpecialNormTests.cs` odaklı sentetik testler içerir; WPF hukuk ekranında gerçek mevzuat belgesi gibi sunulmaz.
