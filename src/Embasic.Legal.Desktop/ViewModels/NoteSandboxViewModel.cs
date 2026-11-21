@@ -208,6 +208,17 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
             OverwritePrompt = true
         };
         if (dialog.ShowDialog() != true) return;
+        // AES-GCM protects note bodies, NOT SQLite law/article/version identifiers,
+        // timestamps or the number of records in the exported raw database.
+        if (MessageBox.Show(
+                "Bu yedek şifreli not içerikleri taşır; ancak kanun/madde/sürüm kimlikleri, tarih ve SQLite üstverisi ŞİFRESİZDİR. " +
+                "Şifrelenmiş arşiv değildir. Haricî konuma kaydetmenin gizlilik riskini kabul ederek devam edilsin mi?",
+                "EMBASIC — ŞİFRESİZ ÜSTVERİ DIŞA AKTARIMI",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            Status = "Yedek dışa aktarımı metadata gizliliği nedeniyle iptal edildi.";
+            return;
+        }
         try
         {
             _store.BackupTo(dialog.FileName);
