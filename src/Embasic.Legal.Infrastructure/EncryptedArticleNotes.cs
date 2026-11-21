@@ -31,6 +31,15 @@ public sealed class EncryptedArticleNotes : IDisposable
         "Embasic", "Legal", "article-notes-v4-encrypted.sqlite3");
 
     public EncryptedArticleNotes(string databasePath, string passphrase)
+        : this(databasePath, passphrase, readOnlyExisting: false)
+    {
+    }
+
+    /// <summary>
+    /// Recovery candidates MUST be opened read-only: an invalid foreign SQLite
+    /// file is not to be altered by schema-creation on an inspection attempt.
+    /// </summary>
+    private EncryptedArticleNotes(string databasePath, string passphrase, bool readOnlyExisting)
     {
         if (string.IsNullOrWhiteSpace(databasePath))
             throw new ArgumentException("Kasa yolu gerekli.", nameof(databasePath));
@@ -39,8 +48,10 @@ public sealed class EncryptedArticleNotes : IDisposable
 
         string fullPath = Path.GetFullPath(databasePath);
         bool existing = File.Exists(fullPath);
+        if (readOnlyExisting && !existing)
+            throw new FileNotFoundException("Salt-okunur şifreli kasa adayı yok.", fullPath);
         _databasePath = fullPath;
-        _store = new ArticleNoteStore(fullPath);
+        _store = new ArticleNoteStore(fullPath, readOnly: readOnlyExisting);
         byte[]? derived = null;
         try
         {
@@ -340,7 +351,7 @@ public sealed class EncryptedArticleNotes : IDisposable
         try
         {
             _store.BackupTo(staging);
-            using (var snapshotStore = new ArticleNoteStore(staging))
+            using (var snapshotStore = new ArticleNoteStore(staging, readOnly: true))
                 if (!AuthenticateStore(snapshotStore))
                     throw new InvalidDataException("Yedek şifreli içerik doğrulaması başarısız.");
             File.Move(staging, destination, overwrite: true);
@@ -411,7 +422,7 @@ public sealed class EncryptedArticleNotes : IDisposable
         VaultArtifactRiskGates.RequireNoSqliteSidecars(target);
 
         string backupHashBefore = FileSha256(backup);
-        using var source = new EncryptedArticleNotes(backup, passphrase);
+        using var source = new EncryptedArticleNotes(backup, passphrase, readOnlyExisting: true);
         var fromBackup = source.AuthenticatedFingerprints();
         string backupHashAfter = FileSha256(backup);
         if (backupHashBefore != backupHashAfter)
@@ -423,7 +434,7 @@ public sealed class EncryptedArticleNotes : IDisposable
 
         VaultArtifactRiskGates.RequireNoSqliteSidecars(target);
         string targetHashBefore = FileSha256(target);
-        using var existing = new EncryptedArticleNotes(target, passphrase);
+        using var existing = new EncryptedArticleNotes(target, passphrase, readOnlyExisting: true);
         if (!existing._salt.AsSpan().SequenceEqual(source._salt))
             throw new InvalidDataException("Yedek başka bir şifreli kasaya aittir.");
         var current = existing.AuthenticatedFingerprints();
@@ -467,7 +478,7 @@ public sealed class EncryptedArticleNotes : IDisposable
             throw new InvalidOperationException(
                 "Eski yedek mevcut notları değiştirecek veya silecek; açık kullanıcı onayı olmadan geri yükleme reddedildi.");
         byte[] originalSalt;
-        using (var old = new EncryptedArticleNotes(backup, passphrase))
+        using (var old = new EncryptedArticleNotes(backup, passphrase, readOnlyExisting: true))
         {
             if (!old.CheckIntegrity())
                 throw new InvalidDataException("Yedek şifreli notlardan biri veya SQLite yapısı bozuk; geri yükleme reddedildi.");
@@ -477,7 +488,7 @@ public sealed class EncryptedArticleNotes : IDisposable
         // Prevent accidental replacement of another independently created vault.
         if (File.Exists(target))
         {
-            using var present = new EncryptedArticleNotes(target, passphrase);
+            using var present = new EncryptedArticleNotes(target, passphrase, readOnlyExisting: true);
             if (!present.CheckIntegrity())
                 throw new InvalidDataException("Mevcut kasada bozuk şifreli not var; geri yüklemeden önce insan incelemesi gerekli.");
             if (!present._salt.AsSpan().SequenceEqual(originalSalt))
@@ -493,7 +504,7 @@ public sealed class EncryptedArticleNotes : IDisposable
             File.Copy(backup, staged);
             if (FileSha256(staged) != preview.BackupSha256)
                 throw new IOException("Geçici kopya SHA-256 doğrulamasında uyuşmazlık.");
-            using (var verify = new EncryptedArticleNotes(staged, passphrase))
+            using (var verify = new EncryptedArticleNotes(staged, passphrase, readOnlyExisting: true))
             {
                 if (!verify._salt.AsSpan().SequenceEqual(originalSalt) || !verify.CheckIntegrity())
                     throw new InvalidDataException("Geri yükleme kopyası doğrulanamadı.");

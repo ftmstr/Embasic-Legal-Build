@@ -23,24 +23,40 @@ public sealed class ArticleNoteStore : IDisposable
     private readonly SqliteConnection _connection;
     private readonly string _databasePath;
 
-    public ArticleNoteStore(string databasePath)
+    public ArticleNoteStore(string databasePath, bool readOnly = false)
     {
         if (string.IsNullOrWhiteSpace(databasePath))
             throw new ArgumentException("Veritabanı yolu gerekli.", nameof(databasePath));
         var fullPath = Path.GetFullPath(databasePath);
         _databasePath = fullPath;
-        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        // TUR016: do not CREATE a missing file, its parent directory, a schema,
+        // or an index while inspecting a user-provided recovery candidate.
+        if (readOnly && !File.Exists(fullPath))
+            throw new FileNotFoundException("Salt-okunur kasa adayı bulunamadı.", fullPath);
+        if (!readOnly)
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         var builder = new SqliteConnectionStringBuilder
         {
             DataSource = fullPath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
+            Mode = readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate,
             Cache = SqliteCacheMode.Private,
             Pooling = false // Release Windows file handles immediately after Dispose; safe backup/test cleanup.
         };
         _connection = new SqliteConnection(builder.ToString());
-        _connection.Open();
-        using var cmd = _connection.CreateCommand();
-        cmd.CommandText = """
+        try
+        {
+            _connection.Open();
+            if (readOnly)
+            {
+                // SQLite itself enforces read-only writes; query_only is an extra
+                // connection guard, NOT protection from hostile concurrent writers.
+                using var queryOnly = _connection.CreateCommand();
+                queryOnly.CommandText = "PRAGMA query_only=ON;";
+                queryOnly.ExecuteNonQuery();
+                return;
+            }
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS ArticleNotes (
                 Id TEXT NOT NULL PRIMARY KEY,
                 LawNumber TEXT NOT NULL,
@@ -57,8 +73,14 @@ public sealed class ArticleNoteStore : IDisposable
             """;
         cmd.ExecuteNonQuery();
         using var durability = _connection.CreateCommand();
-        durability.CommandText = "PRAGMA synchronous=FULL;";
-        durability.ExecuteNonQuery();
+            durability.CommandText = "PRAGMA synchronous=FULL;";
+            durability.ExecuteNonQuery();
+        }
+        catch
+        {
+            _connection.Dispose();
+            throw;
+        }
     }
 
     public static string DefaultDatabasePath =>
