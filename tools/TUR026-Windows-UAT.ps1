@@ -84,7 +84,7 @@ $cases = @(
     'TUR026: 100/150/200 DPI ve minimum pencere boyutunda sol menü, soru seçenekleri ve anlatım kaydırılarak okunabiliyor',
     'TUR026: CMK 74 ile CMK 134 kontrol listesi birbirinden bağımsızdır; işaret kaldırma diğer konuyu değiştirmez',
     'TUR026: Eğitim oturumunu sıfırla bütün 51 konunun işaretlerini ve eğitim puanlarını temizler; NOT_VERIFIED sürer',
-    'TUR026: Sol menüde Öğretici Rehber · CMK 74+ görülür, navigasyon açılır',
+    'TUR026: CMK Öğrenme Merkezi sol menüden açılır; Adlî incelemeler kategorisinde eski CMK 74 konusu seçilebilir',
     'TUR026: Eski 13 konu CMK74, muayene, genetik, adli kontrol, tutuklama, arama ve alternatif çözümleri kapsar',
     'TUR026: 4 aşamalı akış her konuda doğru seçimle değişir; hiçbir madde güncel VERIFIED olmaz',
     'TUR026: Karşılaştırmalı tablo her konu için 4 satır gösterir; resmî kanun lafzı diye sunulmaz',

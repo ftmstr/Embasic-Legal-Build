@@ -33,3 +33,5 @@ Kullanıcının verdiği **https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5271.doc*
 5 odaklı xUnit testi: kategori sahipliği/benzersizlik/eski nesne kimliği; 1–335 okuma aralıkları ve ek madde referansları; 51 ders ve 102 sorunun cevap/geribildirim yapısı; kategoriler arası işaret koruma ve sıfırlama; kaynak başarısızlığının onaya dönüşmemesi. XML parse statik kontrolü fiziksel WPF kabulü değildir. `TUR026-Windows-UAT.ps1` yeni menü, kategori, anlatım, açılır şema, test, kaynak panosu, ilerleme ve DPI vakalarını içerir. Gerçek Windows GUI kabulü **NOT_RUN**.
 
 Windows CI sonuçları PR ve teslim raporunda ayrıca kaydedilecektir. `main` merge, tag, release, installer veya üretim yayını yapılmaz.
+
+Kod incelemesi sonrasında: kategori değişiminde eski başlık kalmaması için sabit merkez başlığı; uzun matris hücrelerine satır kaydırma; öğrenme sekmeleri, soru listesi ve tablo için tema renkleri; eski menü adını kullanan UAT vakası düzeltildi. Yeni 38 konunun her şema adımı kendi işlem açıklamasını kullanır; kavram/ayrım/örnek dersleri ayrı saklanır. Bu statik inceleme fiziksel Windows kabulünün yerine geçmez.

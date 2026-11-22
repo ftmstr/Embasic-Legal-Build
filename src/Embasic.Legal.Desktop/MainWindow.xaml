@@ -44,7 +44,7 @@
             <Button Click="OnDetach" Content="Ayrı pencere"/>
           </StackPanel>
           <TextBlock Text="{Binding CurrentTitle}" FontWeight="Bold" FontSize="19"
-                     VerticalAlignment="Center"/>
+                     VerticalAlignment="Center" TextWrapping="Wrap"/>
         </DockPanel>
       </Border>
       <Border Margin="24" Padding="20" Background="{DynamicResource SurfaceBrush}"

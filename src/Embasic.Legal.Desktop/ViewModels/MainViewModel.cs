@@ -147,7 +147,7 @@ public sealed class MainViewModel : ObservableViewModel
         {
             _learningHub.OpenCategory(key[4..]);
             CurrentPage = _learningHub;
-            CurrentTitle = _learningHub.SelectedCategory.Title;
+            CurrentTitle = "CMK Öğrenme Merkezi";
             return;
         }
         object page = key switch
