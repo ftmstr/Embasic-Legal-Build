@@ -288,6 +288,158 @@
                      Text="TUR005: Şifreli kasa ve kullanıcı onaylı eski not aktarımı Alpha aşamasındadır. Madde kimlikleri/üstveriler şifresizdir; eski notlar ayrıca düz metin olarak kalır. Fiziksel Windows kabulü yapılmadı."/>
         </StackPanel>
       </DataTemplate>
+      <!-- TUR024: fully offline source-gated CMK procedural learning / practice hub. -->
+      <DataTemplate DataType="{x:Type vm:CmkLearningHubViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="775">
+          <StackPanel MaxWidth="830" HorizontalAlignment="Left">
+            <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding Title}" TextWrapping="Wrap"/>
+            <TextBlock FontSize="12" Margin="0,8,0,10" TextWrapping="Wrap"
+                       Text="CMK 74 ve devamı • Adlî incelemeler • Yakalama • Tutuklama • Adlî kontrol • Arama ve el koyma • Alternatif çözümler"/>
+            <Border Background="{DynamicResource BackgroundBrush}" Padding="12"
+                    BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" CornerRadius="8">
+              <StackPanel>
+                <TextBlock Text="RESMÎ KANUN METNİ: NOT_VERIFIED" FontWeight="Bold" FontSize="15"/>
+                <TextBlock Text="{Binding Warnings}" TextWrapping="Wrap" FontSize="12" Margin="0,5,0,0"/>
+              </StackPanel>
+            </Border>
+            <TextBlock Margin="0,14,0,3" FontWeight="Bold" Text="Öğrenmek istediğiniz işlem kategorisi"/>
+            <ComboBox ItemsSource="{Binding Topics}" SelectedItem="{Binding SelectedTopic, Mode=TwoWay}"
+                      DisplayMemberPath="Title" MaxWidth="710" HorizontalAlignment="Left"
+                      AutomationProperties.Name="CMK öğretici konu seçimi"/>
+            <WrapPanel Margin="0,10,0,5">
+              <TextBlock FontWeight="Bold" Text="{Binding SelectedTopic.Group}" Margin="0,0,14,0"/>
+              <TextBlock FontWeight="Bold" Text="{Binding CurrentReference}" Margin="0,0,14,0"/>
+              <TextBlock Text="Güncel konsolide metin: NOT_VERIFIED"/>
+            </WrapPanel>
+            <TextBlock Text="{Binding SelectedTopic.LearningGoal}" TextWrapping="Wrap" Margin="0,3,0,12"/>
+            <TabControl Margin="0,6,0,0" MinHeight="450">
+              <TabItem Header="1 · Şema">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="440">
+                  <StackPanel Margin="10">
+                    <TextBlock FontSize="16" FontWeight="Bold" Text="İşlem akışını öğren: 4 aşama"/>
+                    <TextBlock FontSize="11" Margin="0,3,0,9" TextWrapping="Wrap"
+                               Text="Şema yetki veya süre hükmü değildir; dosyaya özgü kararı insan verir."/>
+                    <ItemsControl ItemsSource="{Binding Flow}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <StackPanel>
+                            <Border CornerRadius="8" BorderThickness="1"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    Background="{DynamicResource BackgroundBrush}"
+                                    Padding="12" Margin="0,3,0,0">
+                              <StackPanel>
+                                <TextBlock FontWeight="Bold" FontSize="14" Text="{Binding Stage}"/>
+                                <TextBlock Text="{Binding ReviewPrompt}" TextWrapping="Wrap" Margin="0,5,0,5"/>
+                                <TextBlock Text="{Binding DocumentToInspect}" TextWrapping="Wrap" FontSize="11"/>
+                                <TextBlock Text="{Binding Gate}" FontSize="11" FontWeight="Bold"
+                                           TextWrapping="Wrap" Margin="0,6,0,0"/>
+                              </StackPanel>
+                            </Border>
+                            <TextBlock Text="↓" FontSize="18" HorizontalAlignment="Center" Margin="0,3,0,1"/>
+                          </StackPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+              <TabItem Header="2 · Tablo">
+                <StackPanel Margin="10">
+                  <TextBlock FontSize="16" FontWeight="Bold" Text="Karşılaştırmalı kontrol matrisi"/>
+                  <TextBlock FontSize="11" Margin="0,5,0,9" TextWrapping="Wrap"
+                             Text="Tabloda kanun maddesi lafzı değil; incelenecek belge ve cevapsız hukuk soruları yer alır."/>
+                  <DataGrid ItemsSource="{Binding Matrix}" AutoGenerateColumns="False"
+                            IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False"
+                            RowHeaderWidth="0" HeadersVisibility="Column"
+                            GridLinesVisibility="Horizontal" Height="350"
+                            HorizontalScrollBarVisibility="Auto"
+                            VerticalScrollBarVisibility="Auto"
+                            AutomationProperties.Name="CMK uygulama kontrol tablosu">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Aşama" Width="120" Binding="{Binding Stage}"/>
+                      <DataGridTextColumn Header="Ön inceleme sorusu" Width="275"
+                                          Binding="{Binding HumanReviewQuestion}"/>
+                      <DataGridTextColumn Header="Aranacak belge" Width="265"
+                                          Binding="{Binding DocumentToInspect}"/>
+                      <DataGridTextColumn Header="Açık risk" Width="245"
+                                          Binding="{Binding UnresolvedRisk}"/>
+                    </DataGrid.Columns>
+                  </DataGrid>
+                </StackPanel>
+              </TabItem>
+              <TabItem Header="3 · Kontrol listesi">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="435">
+                  <StackPanel Margin="10">
+                    <TextBlock FontSize="16" FontWeight="Bold" Text="Dosya hazırlığı — yalnız kişisel eğitim işaretleri"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,5,0,8"
+                               Text="İşaretler RAM'de kalır; belgeyi gerçek, imzalı veya yeterli saymaz. Dosya numarası, isim veya suç içeriği girilmez."/>
+                    <ItemsControl ItemsSource="{Binding Checklist}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                  CornerRadius="6" Padding="9" Margin="0,4,0,4">
+                            <StackPanel>
+                              <TextBlock Text="{Binding Stage}" FontWeight="Bold"/>
+                              <CheckBox IsChecked="{Binding Reviewed, Mode=TwoWay}"
+                                        Content="Bu inceleme sorusunu kendi kontrol listemde gözden geçirdim"/>
+                              <TextBlock Text="{Binding Prompt}" TextWrapping="Wrap" Margin="22,0,0,1"/>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding ChecklistProgress}" FontWeight="Bold"
+                               TextWrapping="Wrap" Margin="0,10,0,0"/>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+              <TabItem Header="4 · Kısa test">
+                <StackPanel Margin="12" MaxWidth="735">
+                  <TextBlock Text="{Binding QuestionTitle}" FontWeight="Bold" FontSize="17"/>
+                  <TextBlock Text="{Binding QuizPrompt}" TextWrapping="Wrap" Margin="0,10,0,8"
+                             FontSize="14"/>
+                  <ListBox ItemsSource="{Binding Choices}" DisplayMemberPath="DisplayName"
+                           SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                           Height="158" HorizontalContentAlignment="Stretch"
+                           AutomationProperties.Name="Senaryo yanıt seçenekleri"/>
+                  <WrapPanel Margin="0,8,0,6">
+                    <Button Content="Yanıtı değerlendir" Command="{Binding AnswerCommand}"/>
+                    <Button Content="Sonraki soru" Command="{Binding NextQuestionCommand}"/>
+                    <Button Content="Eğitim oturumunu sıfırla"
+                            Command="{Binding ResetSessionCommand}"/>
+                  </WrapPanel>
+                  <TextBlock Text="{Binding Feedback}" TextWrapping="Wrap"
+                             FontWeight="Bold" Margin="0,9,0,9"/>
+                  <Border BorderBrush="{DynamicResource BorderBrush}"
+                          Background="{DynamicResource BackgroundBrush}"
+                          Padding="9" BorderThickness="1" CornerRadius="5">
+                    <TextBlock Text="{Binding LearningProgress}" TextWrapping="Wrap"/>
+                  </Border>
+                  <TextBlock Text="{Binding SessionLabel}" Margin="0,9,0,0"
+                             FontSize="11" TextWrapping="Wrap"/>
+                </StackPanel>
+              </TabItem>
+              <TabItem Header="5 · Kaynak ve güvenlik">
+                <StackPanel Margin="12">
+                  <TextBlock FontSize="17" FontWeight="Bold" Text="Kanonik hukuk kaynağı"/>
+                  <TextBlock Text="{Binding TopicStatus}" TextWrapping="Wrap" Margin="0,8,0,11"/>
+                  <TextBlock Text="Cumhurbaşkanlığı Mevzuat Bilgi Sistemi"
+                             FontWeight="Bold"/>
+                  <TextBlock Text="{Binding CanonicalSource}" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                  <TextBlock Text="CMK 5271 — güncel resmî metin adresi (henüz indirilemedi)" />
+                  <TextBlock Text="{Binding OfficialCmkUrl}" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                  <TextBlock Text="TCK 5237 — güncel resmî metin adresi (henüz indirilemedi)" />
+                  <TextBlock Text="{Binding OfficialTckUrl}" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                  <Button Content="Bu konuya ait resmî kaynak bağlantısını kopyala"
+                          HorizontalAlignment="Left" Command="{Binding CopyOfficialLinkCommand}"/>
+                  <TextBlock TextWrapping="Wrap" Margin="0,12,0,0"
+                             Text="TBMM ilk kabul metinleri güncel kanun değildir. AYM/Danıştay karar asılları ayrıca doğrulanmalıdır. Etkin ağ isteği yapılmaz, eski metin güncel hukuk diye gösterilmez."/>
+                </StackPanel>
+              </TabItem>
+            </TabControl>
+          </StackPanel>
+        </ScrollViewer>
+      </DataTemplate>
       <DataTemplate DataType="{x:Type vm:SystematicsPage}">
         <StackPanel>
           <TextBlock Text="{Binding Title}" FontSize="23" FontWeight="Bold"/>
