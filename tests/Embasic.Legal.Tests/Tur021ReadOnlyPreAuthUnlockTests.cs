@@ -78,7 +78,9 @@ public sealed class Tur021ReadOnlyPreAuthUnlockTests
             using(var original=new EncryptedArticleNotes(path,Pass))
                 original.Save(Key,"SYNTHETIC ENCRYPTED TEXT");
             string before=Hash(path);
-            Assert.Throws<CryptographicException>(()=>
+            // .NET 10 throws AuthenticationTagMismatchException, a derived
+            // CryptographicException. Any derived authentication failure is valid.
+            Assert.ThrowsAny<CryptographicException>(()=>
                 new EncryptedArticleNotes(path,"OTHER-SYNTHETIC-PASSWORD"));
             Assert.Equal(before,Hash(path));
             using var legitimate=new EncryptedArticleNotes(path,Pass);
