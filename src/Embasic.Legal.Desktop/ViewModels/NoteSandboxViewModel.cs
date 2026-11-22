@@ -20,6 +20,8 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         new("SANDBOX", "SYNTHETIC-ARTICLE", "", "TUR003-EXPLICIT-DEMO");
     private readonly DispatcherTimer _debounce;
     private EncryptedArticleNotes? _store;
+    // TUR019 AUTO_SQLITE_METADATA_CONSENT — one unlocked session only.
+    private readonly RawMetadataAutoBackupConsent _automaticBackupConsent = new();
     private LegacyMigrationPreview? _migrationPreview;
     private bool _migrationConsent;
     private string _migrationStatus =
@@ -126,6 +128,7 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
             {
                 var saved = candidate.Get(_key);
                 _store = candidate;
+                _automaticBackupConsent.Reset();
                 _draft = saved?.Text ?? "";
                 _dirty = false;
                 Changed(nameof(Draft));
@@ -415,6 +418,24 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         Changed(nameof(EditorHeight));
     }
 
+    // Explicit consent is necessary even for automatic backups, because
+    // AES-GCM does not encrypt law/article/version/timestamp SQLite columns.
+    private bool AllowAutomaticSqliteBackup(bool forDelete)
+    {
+        if (_automaticBackupConsent.Approved) return true;
+        if (_automaticBackupConsent.HasDecision && !forDelete) return false;
+        bool agreed = MessageBox.Show(
+            "OTOMATİK SQLITE YEDEĞİ: Not içerikleri şifrelidir; ancak kanun/madde/fıkra, " +
+            "sürüm, zaman ve kayıt sayısı SQLite dosyasında ŞİFRESİZDİR. " +
+            "Bu oturumda otomatik ham SQLite yedeği oluşturulmasına EVET diyor musunuz? " +
+            "HAYIR: şifreli not kaydı devam eder fakat yedek ALINMAZ; " +
+            "yedeksiz not silme reddedilir.",
+            "EMBASIC — AÇIK ÜSTVERİ YEDEĞİ ONAYI",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
+        _automaticBackupConsent.Decide(agreed);
+        return _automaticBackupConsent.Approved;
+    }
+
     private bool Save()
     {
         _debounce.Stop();
@@ -434,14 +455,23 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
             _store.Save(_key, Draft);
             _dirty = false;
             HasNote = true;
-            try
+            if (!AllowAutomaticSqliteBackup(forDelete: false))
             {
-                _store.BackupTo(EncryptedArticleNotes.DefaultDatabasePath + ".backup.sqlite3");
-                Status = "Not şifreli kaydedildi ve bütünlük kontrollü yedeklendi.";
+                Status = "Şifreli not kaydedildi fakat açık üstveri onayı bulunmadığından " +
+                    "OTOMATİK YEDEK ALINMADI. Kurtarma için ayrı güvenli yedek gerekir.";
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException)
+            else
             {
-                Status = "Şifreli not kaydedildi; ancak yedek başarısız: " + ex.Message;
+                try
+                {
+                    _automaticBackupConsent.BackupIfApproved(_store,
+                        EncryptedArticleNotes.DefaultDatabasePath + ".backup.sqlite3");
+                    Status = "Not kaydedildi; oturum onaylı ham SQLite yedeği alındı (üstveri açıktır).";
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException)
+                {
+                    Status = "Şifreli not kaydedildi; ancak yedek başarısız: " + ex.Message;
+                }
             }
             return true;
         }
@@ -459,10 +489,17 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         if (MessageBox.Show("Sentetik şifreli not silinsin mi? Önce yedeklenecek.",
                 "Embasic Legal — Deneme Notu", MessageBoxButton.YesNo, MessageBoxImage.Warning)
             != MessageBoxResult.Yes) return;
+        if (!AllowAutomaticSqliteBackup(forDelete: true))
+        {
+            Status = "Silme İPTAL: açık üstverili SQLite yedeği onaylanmadı; not korunuyor.";
+            return;
+        }
         try
         {
             _debounce.Stop();
-            _store.BackupTo(EncryptedArticleNotes.DefaultDatabasePath + ".backup.sqlite3");
+            _automaticBackupConsent.RequireApprovalForDeletion();
+            _automaticBackupConsent.BackupIfApproved(_store,
+                EncryptedArticleNotes.DefaultDatabasePath + ".backup.sqlite3");
             _store.Delete(_key);
             _draft = "";
             Changed(nameof(Draft));
@@ -490,6 +527,7 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         IsOpen = false;
         _store?.Dispose();
         _store = null;
+        _automaticBackupConsent.Reset();
         _draft = "";
         Changed(nameof(Draft));
         HasNote = false;
@@ -505,6 +543,7 @@ public sealed class NoteSandboxViewModel : ObservableViewModel
         MigrationConsent = false;
         _store?.Dispose();
         _store = null;
+        _automaticBackupConsent.Reset();
         _draft = "";
         Changed(nameof(Draft));
         HasNote = false;
