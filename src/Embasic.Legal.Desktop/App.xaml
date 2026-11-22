@@ -32,12 +32,48 @@
         <Setter Property="Margin" Value="0,5,0,9" />
       </Style>
       <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
-        <StackPanel>
-          <TextBlock FontSize="27" FontWeight="Bold" Text="Embasic Legal 2.0 — Windows Alpha"/>
-          <TextBlock FontSize="15" TextWrapping="Wrap" Margin="0,20,0,0"
-                     Text="Gerçek WPF masaüstü uygulaması. İlk geliştirme turunda takvim hesaplama çekirdeği etkinleştirildi."/>
-          <TextBlock Margin="0,14,0,0" TextWrapping="Wrap" Text="Mevzuat ve resmî UYAP güneş çizelgesi doğrulanmadı; hukuki üretim NO-GO."/>
-        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel MaxWidth="830" HorizontalAlignment="Stretch">
+            <TextBlock FontSize="27" FontWeight="Bold" Text="Embasic Legal — Ana Sayfa" TextWrapping="Wrap"/>
+            <TextBlock FontSize="15" TextWrapping="Wrap" Margin="0,12,0,18"
+                       Text="Adlî hesaplama araçları, işlem sistematikleri ve ceza muhakemesi öğrenme merkezi."/>
+            <Border Background="{DynamicResource BackgroundBrush}" CornerRadius="10" Padding="18"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+              <StackPanel>
+                <TextBlock Text="Ceza Muhakemesi Hukuku" FontSize="22" FontWeight="Bold" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding LearningSummary}" FontSize="15" Margin="0,8,0,10" TextWrapping="Wrap"/>
+                <TextBlock Text="Konuyu öğrenin, şemayı açın, örneği inceleyin ve açıklamalı testi çözün."
+                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+                <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="learning" HorizontalAlignment="Left"
+                        AutomationProperties.Name="Ana sayfadan CMK öğrenme merkezini aç">
+                  <TextBlock Text="CMK Öğrenme Merkezini Aç" TextWrapping="Wrap"/>
+                </Button>
+                <WrapPanel Margin="0,10,0,0">
+                  <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="cmk:sorusturma">
+                    <TextBlock Text="Soruşturma" TextWrapping="Wrap"/>
+                  </Button>
+                  <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="cmk:kovusturma">
+                    <TextBlock Text="Kovuşturma" TextWrapping="Wrap"/>
+                  </Button>
+                  <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="cmk:kanunyollari">
+                    <TextBlock Text="Kanun Yolları" TextWrapping="Wrap"/>
+                  </Button>
+                  <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="alternatives">
+                    <TextBlock Text="Alternatif Çözümler" TextWrapping="Wrap"/>
+                  </Button>
+                </WrapPanel>
+                <TextBlock Text="Kavramsal eğitim taslağı · Güncel resmî kanun metni doğrulanmadı (NOT_VERIFIED)."
+                           TextWrapping="Wrap" FontSize="12" Margin="0,14,0,0"/>
+              </StackPanel>
+            </Border>
+            <Button Margin="0,16,0,0" HorizontalAlignment="Left"
+                    Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="hub">
+              <TextBlock Text="Adli Hesaplama Merkezini Aç" TextWrapping="Wrap"/>
+            </Button>
+            <TextBlock Margin="0,14,0,0" TextWrapping="Wrap" Text="Mevzuat ve resmî UYAP güneş çizelgesi doğrulanmadı; hukuki üretim NO-GO."/>
+          </StackPanel>
+        </ScrollViewer>
       </DataTemplate>
       <DataTemplate DataType="{x:Type vm:CalculatorHubViewModel}">
         <StackPanel>

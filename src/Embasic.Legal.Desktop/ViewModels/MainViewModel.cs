@@ -31,7 +31,11 @@ public sealed record LawRow(string Number, string Title)
 {
     public string DisplayName => Number + " — " + Title + "  [METİN DOĞRULANMADI]";
 }
-public sealed class DashboardViewModel { }
+public sealed class DashboardViewModel
+{
+    public string LearningSummary => $"{CmkCurriculum.Categories.Count} kategori · " +
+        $"{CmkCurriculum.All.Count} konu · {CmkCurriculum.All.Sum(t => t.Quiz.Count)} açıklamalı soru";
+}
 public sealed class CalculatorHubViewModel { }
 public sealed record PlaceholderViewModel(string Title, string Message);
 
@@ -141,6 +145,12 @@ public sealed class MainViewModel : ObservableViewModel
         return _penalty;
     }
 
+    private CmkLearningHubViewModel OpenLearningTopic(string topicKey)
+    {
+        _learningHub.OpenTopic(topicKey);
+        return _learningHub;
+    }
+
     private void Navigate(string? key)
     {
         if (key?.StartsWith("cmk:", StringComparison.Ordinal) == true)
@@ -163,7 +173,7 @@ public sealed class MainViewModel : ObservableViewModel
             "night" => new NightViewModel(),
             "laws" => new LegislationViewModel(),
             "learning" => _learningHub,
-            "alternatives" => new PlaceholderViewModel("Alternatif Çözümler", "Kaynaklı hukuki karar destek modülü: sonraki turlarda. Üretim NO-GO."),
+            "alternatives" => OpenLearningTopic("cmk250-253"),
             "detention" => _detention,
             "supervision" => _supervision,
             "search" => _searchSeizure,

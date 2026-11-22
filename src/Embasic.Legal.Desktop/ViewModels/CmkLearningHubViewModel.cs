@@ -73,6 +73,12 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     public string RequestedDocumentUrl => CmkCurriculum.RequestedDocumentUrl;
     public string SourceRetrievalNote => CmkCurriculum.SourceRetrievalNote;
     public void OpenCategory(string key) => SelectedCategory = CmkCurriculum.FindCategory(key);
+    public void OpenTopic(string topicKey)
+    {
+        var topic = CmkLearningCatalog.Find(topicKey);
+        SelectedCategory = Categories.First(category => category.TopicKeys.Contains(topicKey));
+        SelectedTopic = topic;
+    }
     public CmkLearningTopic SelectedTopic
     {
         get => _selectedTopic;
