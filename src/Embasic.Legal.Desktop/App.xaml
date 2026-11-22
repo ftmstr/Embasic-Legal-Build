@@ -294,7 +294,7 @@
           <StackPanel MaxWidth="830" HorizontalAlignment="Left">
             <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding Title}" TextWrapping="Wrap"/>
             <TextBlock FontSize="12" Margin="0,8,0,10" TextWrapping="Wrap"
-                       Text="CMK 74 ve devamı • Adlî incelemeler • Yakalama • Tutuklama • Adlî kontrol • Arama ve el koyma • Alternatif çözümler"/>
+                       Text="Genel hükümlerden kanun yollarına · Kavramlar, süreçler ve açıklamalı uygulamalar"/>
             <Border Background="{DynamicResource BackgroundBrush}" Padding="12"
                     BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" CornerRadius="8">
               <StackPanel>
@@ -302,17 +302,40 @@
                 <TextBlock Text="{Binding Warnings}" TextWrapping="Wrap" FontSize="12" Margin="0,5,0,0"/>
               </StackPanel>
             </Border>
-            <TextBlock Margin="0,14,0,3" FontWeight="Bold" Text="Öğrenmek istediğiniz işlem kategorisi"/>
+            <TextBlock Margin="0,14,0,3" FontWeight="Bold" Text="Ceza muhakemesi kategorisi"/>
+            <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
+                      DisplayMemberPath="DisplayName" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="CMK öğrenme kategorisi"/>
+            <TextBlock Text="{Binding CategorySummary}" TextWrapping="Wrap" FontSize="12" Margin="0,5,0,10"/>
+            <TextBlock FontWeight="Bold" Text="Bu kategorideki konular" Margin="0,0,0,3"/>
             <ComboBox ItemsSource="{Binding Topics}" SelectedItem="{Binding SelectedTopic, Mode=TwoWay}"
                       DisplayMemberPath="Title" MaxWidth="710" HorizontalAlignment="Left"
                       AutomationProperties.Name="CMK öğretici konu seçimi"/>
             <WrapPanel Margin="0,10,0,5">
-              <TextBlock FontWeight="Bold" Text="{Binding SelectedTopic.Group}" Margin="0,0,14,0"/>
+              <TextBlock FontWeight="Bold" Text="{Binding SelectedCategory.Title}" Margin="0,0,14,0"/>
               <TextBlock FontWeight="Bold" Text="{Binding CurrentReference}" Margin="0,0,14,0"/>
               <TextBlock Text="Güncel konsolide metin: NOT_VERIFIED"/>
             </WrapPanel>
             <TextBlock Text="{Binding SelectedTopic.LearningGoal}" TextWrapping="Wrap" Margin="0,3,0,12"/>
             <TabControl Margin="0,6,0,0" MinHeight="450">
+              <TabItem Header="Anlatım">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="440">
+                  <StackPanel Margin="14">
+                    <TextBlock Text="Kavramı öğren" FontSize="18" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding Lesson.Concept}" TextWrapping="Wrap" Margin="0,8,0,18" FontSize="14"/>
+                    <Border Background="{DynamicResource BackgroundBrush}" Padding="14" CornerRadius="8">
+                      <StackPanel>
+                        <TextBlock Text="Birbirine karıştırma" FontSize="16" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding Lesson.Distinction}" TextWrapping="Wrap" Margin="0,7,0,0" FontSize="14"/>
+                      </StackPanel>
+                    </Border>
+                    <TextBlock Text="Örnek üzerinde düşün" FontSize="16" FontWeight="Bold" Margin="0,18,0,5"/>
+                    <TextBlock Text="{Binding Lesson.Example}" TextWrapping="Wrap" FontSize="14"/>
+                    <TextBlock Text="Şema sekmesinde adımları açın; ardından kısa testi yanıtlayın. Bu içerik güncel madde lafzı değil, kavramsal eğitim taslağıdır."
+                               TextWrapping="Wrap" FontSize="12" Margin="0,20,0,0"/>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
               <TabItem Header="1 · Şema">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="440">
                   <StackPanel Margin="10">
@@ -327,13 +350,17 @@
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     Background="{DynamicResource BackgroundBrush}"
                                     Padding="12" Margin="0,3,0,0">
-                              <StackPanel>
-                                <TextBlock FontWeight="Bold" FontSize="14" Text="{Binding Stage}"/>
-                                <TextBlock Text="{Binding ReviewPrompt}" TextWrapping="Wrap" Margin="0,5,0,5"/>
-                                <TextBlock Text="{Binding DocumentToInspect}" TextWrapping="Wrap" FontSize="11"/>
-                                <TextBlock Text="{Binding Gate}" FontSize="11" FontWeight="Bold"
-                                           TextWrapping="Wrap" Margin="0,6,0,0"/>
-                              </StackPanel>
+                              <Expander IsExpanded="False" HorizontalContentAlignment="Stretch">
+                                <Expander.Header>
+                                  <TextBlock FontWeight="Bold" FontSize="14" Text="{Binding Stage}" TextWrapping="Wrap"/>
+                                </Expander.Header>
+                                <StackPanel Margin="5,7,0,2">
+                                  <TextBlock Text="{Binding ReviewPrompt}" TextWrapping="Wrap" Margin="0,5,0,5"/>
+                                  <TextBlock Text="{Binding DocumentToInspect}" TextWrapping="Wrap" FontSize="11"/>
+                                  <TextBlock Text="{Binding Gate}" FontSize="11" FontWeight="Bold"
+                                             TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                </StackPanel>
+                              </Expander>
                             </Border>
                             <TextBlock Text="↓" FontSize="18" HorizontalAlignment="Center" Margin="0,3,0,1"/>
                           </StackPanel>
@@ -398,10 +425,15 @@
                   <TextBlock Text="{Binding QuestionTitle}" FontWeight="Bold" FontSize="17"/>
                   <TextBlock Text="{Binding QuizPrompt}" TextWrapping="Wrap" Margin="0,10,0,8"
                              FontSize="14"/>
-                  <ListBox ItemsSource="{Binding Choices}" DisplayMemberPath="DisplayName"
+                  <ListBox ItemsSource="{Binding Choices}"
                            SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
-                           Height="158" HorizontalContentAlignment="Stretch"
-                           AutomationProperties.Name="Senaryo yanıt seçenekleri"/>
+                           MinHeight="158" MaxHeight="235" HorizontalContentAlignment="Stretch"
+                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                           AutomationProperties.Name="Senaryo yanıt seçenekleri">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate><TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap" Margin="3,5"/></DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                   <WrapPanel Margin="0,8,0,6">
                     <Button Content="Yanıtı değerlendir" Command="{Binding AnswerCommand}"/>
                     <Button Content="Sonraki soru" Command="{Binding NextQuestionCommand}"/>
@@ -426,7 +458,10 @@
                   <TextBlock Text="Cumhurbaşkanlığı Mevzuat Bilgi Sistemi"
                              FontWeight="Bold"/>
                   <TextBlock Text="{Binding CanonicalSource}" TextWrapping="Wrap" Margin="0,3,0,10"/>
-                  <TextBlock Text="CMK 5271 — güncel resmî metin adresi (henüz indirilemedi)" />
+                  <TextBlock Text="Kullanıcının resmî CMK DOC bağlantısı (henüz indirilemedi)" TextWrapping="Wrap"/>
+                  <TextBlock Text="{Binding RequestedDocumentUrl}" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                  <TextBlock Text="{Binding SourceRetrievalNote}" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                  <TextBlock Text="CMK 5271 — PDF alternatif adresi (henüz indirilemedi)" TextWrapping="Wrap"/>
                   <TextBlock Text="{Binding OfficialCmkUrl}" TextWrapping="Wrap" Margin="0,3,0,10"/>
                   <TextBlock Text="TCK 5237 — güncel resmî metin adresi (henüz indirilemedi)" />
                   <TextBlock Text="{Binding OfficialTckUrl}" TextWrapping="Wrap" Margin="0,3,0,10"/>

@@ -24,9 +24,11 @@
           <ItemsControl ItemsSource="{Binding NavigationItems}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
-                <Button Content="{Binding Label}" HorizontalContentAlignment="Left"
+                <Button HorizontalContentAlignment="Left"
                         Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                        CommandParameter="{Binding Key}" />
+                        CommandParameter="{Binding Key}">
+                  <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                </Button>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>

@@ -45,13 +45,34 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     // TUR025: checklist marks are owned by each topic for this RAM session.
     // Quiz scores are separate and cannot certify legal compliance.
     private readonly CmkLearningChecklistSession _checklistSession = new();
-    private CmkLearningTopic _selectedTopic = CmkLearningCatalog.All[0];
+    private CmkLearningCategory _selectedCategory = CmkCurriculum.Categories[0];
+    private CmkLearningTopic _selectedTopic = CmkCurriculum.All[0];
     private CmkLearningChoice? _selectedChoice;
     private int _questionIndex;
     private string _feedback = "Senaryoyu okuyup bir seçenek belirleyin. Puan yalnız öğrenme ilerlemesidir.";
     private ObservableCollection<CmkLearningChecklistRow> _checklist = [];
 
-    public IReadOnlyList<CmkLearningTopic> Topics => CmkLearningCatalog.All;
+    public IReadOnlyList<CmkLearningCategory> Categories => CmkCurriculum.Categories;
+    public CmkLearningCategory SelectedCategory
+    {
+        get => _selectedCategory;
+        set
+        {
+            if (value is null || ReferenceEquals(_selectedCategory, value)) return;
+            _selectedCategory = value;
+            Changed();
+            Changed(nameof(Topics));
+            Changed(nameof(CategorySummary));
+            SelectedTopic = Topics[0];
+        }
+    }
+    public IReadOnlyList<CmkLearningTopic> Topics => SelectedCategory.Topics;
+    public string CategorySummary => $"{Categories.Count} kategori · {CmkCurriculum.All.Count} konu · " +
+        $"{CmkCurriculum.All.Sum(x => x.Quiz.Count)} eğitim sorusu. Seçili kategori: {Topics.Count} konu.";
+    public CmkLearningLesson Lesson => CmkCurriculum.Explain(SelectedTopic.Key);
+    public string RequestedDocumentUrl => CmkCurriculum.RequestedDocumentUrl;
+    public string SourceRetrievalNote => CmkCurriculum.SourceRetrievalNote;
+    public void OpenCategory(string key) => SelectedCategory = CmkCurriculum.FindCategory(key);
     public CmkLearningTopic SelectedTopic
     {
         get => _selectedTopic;
@@ -64,6 +85,7 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
             Changed(nameof(Flow));
             Changed(nameof(Matrix));
             Changed(nameof(TopicStatus));
+            Changed(nameof(Lesson));
             _questionIndex = 0;
             SelectedChoice = null;
             Feedback = "Yeni konu seçildi; önce şemayı ve tabloyu inceleyin.";
@@ -78,7 +100,7 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     public string OfficialCmkUrl => CmkLearningCatalog.CurrentCmkUrl;
     public string OfficialTckUrl => CmkLearningCatalog.CurrentTckUrl;
     public string CanonicalSource => CmkLearningCatalog.CanonicalSource;
-    public string Title => "Koruma Tedbirleri ve Adlî İşlemler — Öğrenme Merkezi";
+    public string Title => "Ceza Muhakemesi Hukuku — Öğrenme Merkezi";
     public string Warnings =>
         "EĞİTİM TASLAĞI / NOT_VERIFIED. Mevzuat.gov.tr güncel metni bu paketle eşleştirilmedi. " +
         "Madde başlıkları yol göstericidir, madde lafzı değildir. Süre, yetki, zorlayıcı tedbir " +
@@ -105,7 +127,7 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
         get => _feedback;
         private set { _feedback = value; Changed(); }
     }
-    public string LearningProgress => $"{_answered.Count} / {Topics.Sum(t => t.Quiz.Count)} senaryo yanıtlandı; " +
+    public string LearningProgress => $"{_answered.Count} / {CmkCurriculum.All.Sum(t => t.Quiz.Count)} senaryo yanıtlandı; " +
         $"{_correct.Count} öğrenme yanıtı doğru. HUKUKÎ PASS / OTOMATİK KARAR YOK.";
     public string SessionLabel =>
         "Tamamen çevrimdışı ve RAM'de. Konu değiştirseniz de o konunun kontrol işaretleri " +
@@ -193,7 +215,7 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     }
     private void CopyOfficialLink()
     {
-        string url = SelectedTopic.Key == "tck75" ? OfficialTckUrl : OfficialCmkUrl;
+        string url = SelectedTopic.Key == "tck75" ? OfficialTckUrl : RequestedDocumentUrl;
         try
         {
             Clipboard.SetText(url);

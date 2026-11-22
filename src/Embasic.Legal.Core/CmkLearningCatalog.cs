@@ -207,7 +207,7 @@ public static class CmkLearningCatalog
         });
 
     public static CmkLearningTopic Find(string key) =>
-        All.First(x => x.Key == key);
+        CmkCurriculum.Find(key);
 
     public static CmkLearningResult Assess(string key, int quizIndex, int selectedOption)
     {
