@@ -51,6 +51,22 @@ public sealed class EncryptedArticleNotes : IDisposable
         if (readOnlyExisting && !existing)
             throw new FileNotFoundException("Salt-okunur şifreli kasa adayı yok.", fullPath);
         _databasePath = fullPath;
+        // TUR021: ordinary Unlock/normal public opening of an EXISTING file
+        // previously ran ArticleNoteStore's ReadWriteCreate schema DDL BEFORE
+        // checking whether the candidate was an EAL4 vault or if its password
+        // was authentic. A foreign but valid SQLite could be modified on failure.
+        // Authenticate the existing file in read-only SQLite mode first. The
+        // readOnlyExisting constructor does not recurse into this preflight.
+        // Fresh missing vaults retain their explicit creation path.
+        if (existing && !readOnlyExisting)
+        {
+            using var authenticated = new EncryptedArticleNotes(
+                fullPath, passphrase, readOnlyExisting: true);
+            // This preflight authenticates the password sentinel. Keep the
+            // existing behavior where damage in a user note is reported through
+            // CheckIntegrity/BackupTo rather than silently altering it at unlock.
+            // This separate open is NOT an OS lock or a TOCTOU-proof transaction.
+        }
         _store = new ArticleNoteStore(fullPath, readOnly: readOnlyExisting);
         byte[]? derived = null;
         try
