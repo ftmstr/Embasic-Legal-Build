@@ -48,6 +48,40 @@ public static class VaultArtifactRiskGates
         }
     }
 
+    /// <summary>
+    /// TUR023: The path reserved for a pre-restore rollback must not be
+    /// occupied by a main file, directory, or ANY SQLite sidecar entry.
+    /// File.Exists alone misses directories and orphan WAL/SHM/journal files.
+    /// No file is deleted or repaired, and no OS-level atomic reservation,
+    /// reparse/hardlink safety or anti-TOCTOU guarantee is claimed.
+    /// </summary>
+    public static void RequireUnusedRollbackDestination(string rollbackPath)
+    {
+        if (string.IsNullOrWhiteSpace(rollbackPath))
+            throw new ArgumentException("Geri alma yedek yolu zorunludur.", nameof(rollbackPath));
+        string absolute = Path.GetFullPath(rollbackPath);
+        RequireNoSqliteSidecars(absolute);
+        try
+        {
+            _ = File.GetAttributes(absolute);
+        }
+        catch (FileNotFoundException)
+        {
+            return;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new IOException(
+                "Geri alma hedefinin dosya sistemi durumu doğrulanamadı; işlem reddedildi.", ex);
+        }
+        throw new IOException(
+            "Önceki geri alma yedeğinin dosya/dizin yolu dolu; üzerine yazılmayacak.");
+    }
+
     public static void RequireWitnessOutsideVaultDirectory(
         string sqlitePath, string witnessPath)
     {
