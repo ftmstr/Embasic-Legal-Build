@@ -525,6 +525,13 @@ public sealed class EncryptedArticleNotes : IDisposable
                 throw new InvalidDataException("Yedek başka bir kasaya aittir; üzerine yazma reddedildi.");
         }
 
+        // TUR023: fail closed BEFORE staging when the prospective rollback
+        // destination has orphan WAL/SHM/journal entries, or is an existing
+        // directory/reparse/file. Do not mutate the current target on refusal.
+        string? rollbackDestination = preview.TargetSha256 is null
+            ? null : target + ".pre-restore.sqlite3";
+        if (rollbackDestination is not null)
+            VaultArtifactRiskGates.RequireUnusedRollbackDestination(rollbackDestination);
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         string staged = target + "." + Guid.NewGuid().ToString("N") + ".restore.tmp";
         try
@@ -548,11 +555,11 @@ public sealed class EncryptedArticleNotes : IDisposable
             {
                 if (!File.Exists(target) || FileSha256(target) != preview.TargetSha256)
                     throw new IOException("Hedef kasa onaydan sonra değişti; geri yükleme reddedildi.");
-                string rollback = target + ".pre-restore.sqlite3";
-                // If rollback exists, refuse overwriting the only prior recovery point.
-                if (File.Exists(rollback))
-                    throw new IOException("Önceki geri alma yedeği mevcut; ezilmeyecek.");
-                File.Replace(staged, target, rollback);
+                // Recheck immediately before replacement; this is still NOT a
+                // filesystem lock. Existing/orphan rollback sidecars are never
+                // silently incorporated, deleted, or replaced.
+                VaultArtifactRiskGates.RequireUnusedRollbackDestination(rollbackDestination!);
+                File.Replace(staged, target, rollbackDestination!);
             }
             else
             {
