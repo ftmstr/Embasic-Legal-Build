@@ -47,6 +47,14 @@ public sealed class EncryptedArticleNotes : IDisposable
             throw new ArgumentException("Kasa parolası en az 12 karakter olmalıdır.", nameof(passphrase));
 
         string fullPath = Path.GetFullPath(databasePath);
+        // TUR022: TUR020 guarded explicit backup, restore and migration,
+        // but normal EAL4 unlock/create did not reject a pre-existing SQLite
+        // -wal/-shm/-journal entry before opening the database. An existing
+        // WAL/journal can carry pages not visible in the main-file SHA.
+        // Fail closed for BOTH existing and not-yet-created vaults, without
+        // deleting sidecars, journal replay or running WAL checkpoint.
+        // This is a name/attributes check, NOT an OS lock or TOCTOU proof.
+        VaultArtifactRiskGates.RequireNoSqliteSidecars(fullPath);
         bool existing = File.Exists(fullPath);
         if (readOnlyExisting && !existing)
             throw new FileNotFoundException("Salt-okunur şifreli kasa adayı yok.", fullPath);
