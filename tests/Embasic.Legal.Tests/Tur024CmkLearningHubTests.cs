@@ -67,7 +67,8 @@ public sealed class Tur024CmkLearningHubTests
             Assert.True(correct.Correct);
             Assert.False(correct.LegalComplianceCertified);
             Assert.Equal("NOT_VERIFIED",correct.SourceStatus);
-            Assert.Contains("HUKUK",correct.Feedback);
+            Assert.Contains("NOT_VERIFIED",correct.Feedback);
+            Assert.Contains("KARAR/YETKİ ONAYI YOK",correct.Feedback);
             var wrong=CmkLearningCatalog.Assess(topic.Key,i,(question.CorrectIndex+1)%3);
             Assert.False(wrong.Correct);
             Assert.False(wrong.LegalComplianceCertified);
