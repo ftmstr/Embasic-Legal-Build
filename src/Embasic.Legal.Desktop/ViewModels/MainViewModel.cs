@@ -26,7 +26,10 @@ public sealed class RelayCommand(Action<object?> execute) : ICommand
     public void Execute(object? parameter) => execute(parameter);
 }
 
-public sealed record NavigationItem(string Key, string Label);
+public sealed record NavigationItem(string Key, string Label, IReadOnlyList<NavigationItem>? Children = null)
+{
+    public bool HasChildren => Children is { Count: > 0 };
+}
 public sealed record LawRow(string Number, string Title)
 {
     public string DisplayName => Number + " — " + Title + "  [METİN DOĞRULANMADI]";
@@ -34,7 +37,7 @@ public sealed record LawRow(string Number, string Title)
 public sealed class DashboardViewModel
 {
     public string LearningSummary => $"{CmkCurriculum.Categories.Count} kategori · " +
-        $"{CmkCurriculum.All.Count} konu · {CmkCurriculum.All.Sum(t => t.Quiz.Count)} açıklamalı soru";
+        $"{CmkCurriculum.CentralTopics.Count} konu · {CmkCurriculum.CentralTopics.Sum(t => t.Quiz.Count)} açıklamalı soru";
 }
 public sealed class CalculatorHubViewModel { }
 public sealed record PlaceholderViewModel(string Title, string Message);
@@ -102,13 +105,9 @@ public sealed class MainViewModel : ObservableViewModel
     [
         new("home", "Ana Sayfa"),
         new("laws", "Mevzuat"),
-        new("learning", "CMK Öğrenme Merkezi"),
-        .. CmkCurriculum.Categories.Select(category =>
-            new NavigationItem("cmk:" + category.Key, "    " + category.Title)),
+        new("learning", "Ceza Muhakemesi Hukuku", CmkCurriculum.Categories.Select(category =>
+            new NavigationItem("cmk:" + category.Key, category.Title)).ToArray()),
         new("alternatives", "Alternatif Çözümler"),
-        new("detention", "Tutuklama"),
-        new("supervision", "Adli Kontrol"),
-        new("search", "Arama ve El Koyma"),
         new("hub", "Adli Hesaplama Merkezi"),
         new("penalty", "  ├ Adli Ceza ve Para Cezası"),
         new("sentence", "      • Ceza oran hesaplama"),
@@ -123,7 +122,7 @@ public sealed class MainViewModel : ObservableViewModel
     ];
     private readonly NoteSandboxViewModel _notesSandbox = new();
     private readonly PenaltyMoneyViewModel _penalty = new();
-    private readonly CmkLearningHubViewModel _learningHub = new();
+    private readonly CmkLearningHubViewModel _learningHub;
     private readonly SystematicsPage _detention = new(ProceduralWorkflows.Detention, "Tutuklama");
     private readonly SystematicsPage _supervision = new(ProceduralWorkflows.JudicialControl, "Adli Kontrol");
     private readonly SystematicsPage _searchSeizure = new(ProceduralWorkflows.SearchSeizure, "Arama ve El Koyma");
@@ -137,12 +136,29 @@ public sealed class MainViewModel : ObservableViewModel
     public string CurrentTitle { get => _currentTitle; private set { _currentTitle = value; Changed(); } }
     public ICommand NavigateCommand { get; }
 
-    public MainViewModel() => NavigateCommand = new RelayCommand(value => Navigate(value as string));
+    public MainViewModel()
+    {
+        _learningHub = new CmkLearningHubViewModel(_detention, _supervision, _searchSeizure);
+        NavigateCommand = new RelayCommand(value => Navigate(value as string));
+    }
 
     private PenaltyMoneyViewModel SetPenaltyTab(int tab)
     {
         _penalty.OpenTab(tab);
         return _penalty;
+    }
+
+    private CmkLearningHubViewModel OpenLearningCentre()
+    {
+        _learningHub.OpenCentre();
+        return _learningHub;
+    }
+
+    private CmkLearningHubViewModel OpenProcedure(string topicKey)
+    {
+        _learningHub.OpenTopic(topicKey);
+        _learningHub.SelectedTabIndex = 6;
+        return _learningHub;
     }
 
     private CmkLearningHubViewModel OpenLearningTopic(string topicKey)
@@ -157,7 +173,7 @@ public sealed class MainViewModel : ObservableViewModel
         {
             _learningHub.OpenCategory(key[4..]);
             CurrentPage = _learningHub;
-            CurrentTitle = "CMK Öğrenme Merkezi";
+            CurrentTitle = _learningHub.Title;
             return;
         }
         object page = key switch
@@ -172,18 +188,19 @@ public sealed class MainViewModel : ObservableViewModel
             "shift" => new DateShiftViewModel(),
             "night" => new NightViewModel(),
             "laws" => new LegislationViewModel(),
-            "learning" => _learningHub,
-            "alternatives" => OpenLearningTopic("cmk250-253"),
-            "detention" => _detention,
-            "supervision" => _supervision,
-            "search" => _searchSeizure,
+            "learning" => OpenLearningCentre(),
+            "alternatives" => OpenLearningTopic("cmk250"),
+            "detention" => OpenProcedure("cmk100-108"),
+            "supervision" => OpenProcedure("cmk109-115"),
+            "search" => OpenProcedure("cmk116-122"),
             "notes" => _notesSandbox,
             "updates" => new PlaceholderViewModel("Güncellemeler", "Resmî kaynak edinme ve sürüm kontrolü henüz etkin değil. Ağ erişimi otomatik başlatılmaz."),
             "settings" => new PlaceholderViewModel("Ayarlar ve Hakkında", "Embasic Legal 2.0 Alpha. WPF/.NET 10. Güvenilir hukuk içeriği denetimi bekleniyor."),
             _ => new DashboardViewModel()
         };
         CurrentPage = page;
-        CurrentTitle = NavigationItems.FirstOrDefault(item => item.Key == key)?.Label.Trim().TrimStart('├', '└', ' ') ?? "Ana Sayfa";
+        CurrentTitle = ReferenceEquals(page, _learningHub) ? _learningHub.Title
+            : NavigationItems.FirstOrDefault(item => item.Key == key)?.Label.Trim().TrimStart('├', '└', ' ') ?? "Ana Sayfa";
     }
 }
 

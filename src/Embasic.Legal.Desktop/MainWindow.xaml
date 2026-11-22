@@ -24,11 +24,42 @@
           <ItemsControl ItemsSource="{Binding NavigationItems}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
-                <Button HorizontalContentAlignment="Left"
-                        Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                        CommandParameter="{Binding Key}">
-                  <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
-                </Button>
+                <Grid>
+                  <Button HorizontalContentAlignment="Left"
+                          Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding Key}">
+                    <Button.Style>
+                      <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding HasChildren}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Button.Style>
+                    <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                  </Button>
+                  <Expander IsExpanded="True" Visibility="{Binding HasChildren, Converter={StaticResource BooleanVisibility}}">
+                    <Expander.Header>
+                      <Button HorizontalContentAlignment="Left"
+                              Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding Key}">
+                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                      </Button>
+                    </Expander.Header>
+                    <ItemsControl ItemsSource="{Binding Children}" Margin="12,0,0,6">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Button HorizontalContentAlignment="Left"
+                                  Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding Key}">
+                            <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </Expander>
+                </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>

@@ -1,19 +1,18 @@
 # Embasic Legal
 
-Windows WPF masaüstü uygulamasının güncel geliştirme zinciri bu depodadır.
+WPF Windows masaüstü uygulaması.
 
-## CMK öğrenme merkezi
+## Ceza Muhakemesi Hukuku
 
-TUR027, TUR026 öğrenme yapısını uygulamanın ana sayfasına ve mevcut **Alternatif Çözümler** menüsüne bağlar. Sol menüdeki **CMK Öğrenme Merkezi** ve 13 kategori de aynı oturumu kullanır: **51 konu, 102 soru**, anlatım, açılır şema, tablo ve kontrol listesi.
+Sol menüde tek açılır başlık altında 13 kategori, **47 konu ve 94 soru** bulunur. İlgili konularda **İşlem sistematiği** sekmesi, mevcut Tutuklama, Adli Kontrol ve Arama/El Koyma araçlarını açar. Aynı araç veya konu için ayrı üst menü oluşturulmaz; geçici işaretler aynı nesnede korunur. Basit yargılama, özel yargılama usulleri içindedir.
 
-- Geliştirme dalı: `tur027/cmk-app-entry-integration`
-- Temel: `tur026/cmk-complete-learning-curriculum` (TUR026 Draft PR #27)
-- Açılış: `Embasic.Legal.exe` → Ana Sayfa → CMK Öğrenme Merkezini Aç
-- Alternatif Çözümler → seri muhakeme / uzlaştırma karşılaştırma dersi; kategori içinden ayrıntılı dersler ve TCK 75 ön ödeme başlığı.
+**Alternatif Çözümler** ayrı üst menüdür: Seri Muhakeme, Uzlaştırma ve Ön Ödeme (**3 konu / 6 soru**). Önceki birleşik CMK250/253 özeti görünür katalogdan kaldırılmış, ayrıntılı dersler tekilleştirilmiştir. Toplam **50 benzersiz konu / 100 soru**. Eski konu kimliği geriye uyumlu erişimde ilgili ayrıntılı derse yönlendirilir.
 
-Güncel mevzuat.gov.tr konsolidasyonu **NOT_VERIFIED**; gerçek Windows GUI kabulü **NOT_RUN**. Eğitim puanı hukukî uygunluk veya yetki onayı değildir. Ana dal/üretim yayını yapılmaz.
+- Dal: `tur028/criminal-procedure-consolidation`
+- Temel: TUR027 / Draft PR #28
+- Açılış: `Embasic.Legal.exe` → Ceza Muhakemesi Hukuku
 
-Windows kaynak derlemesi:
+Güncel mevzuat **NOT_VERIFIED**; fiziksel Windows GUI kabulü **NOT_RUN**. Üretim/stable **NO-GO**, main merge veya release yoktur.
 
 ```powershell
 dotnet restore Embasic.Legal.slnx
