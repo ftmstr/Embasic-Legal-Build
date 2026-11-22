@@ -98,7 +98,9 @@ public sealed class MainViewModel : ObservableViewModel
     [
         new("home", "Ana Sayfa"),
         new("laws", "Mevzuat"),
-        new("learning", "Öğretici Rehber · CMK 74+"),
+        new("learning", "CMK Öğrenme Merkezi"),
+        .. CmkCurriculum.Categories.Select(category =>
+            new NavigationItem("cmk:" + category.Key, "    " + category.Title)),
         new("alternatives", "Alternatif Çözümler"),
         new("detention", "Tutuklama"),
         new("supervision", "Adli Kontrol"),
@@ -141,6 +143,13 @@ public sealed class MainViewModel : ObservableViewModel
 
     private void Navigate(string? key)
     {
+        if (key?.StartsWith("cmk:", StringComparison.Ordinal) == true)
+        {
+            _learningHub.OpenCategory(key[4..]);
+            CurrentPage = _learningHub;
+            CurrentTitle = "CMK Öğrenme Merkezi";
+            return;
+        }
         object page = key switch
         {
             "home" => new DashboardViewModel(),

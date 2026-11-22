@@ -20,6 +20,7 @@ public sealed record CmkLearningTopic(
     IReadOnlyList<CmkLearningQuizQuestion> Quiz,
     string SourceStatus = "NOT_VERIFIED")
 {
+    public CmkLearningLesson? Lesson { get; init; }
     public bool IsCurrentLawVerified => false;
     public string SourceNotice =>
         "GÜNCEL MEVZUAT: NOT_VERIFIED. Madde numarası yalnız arama referansıdır; " +
@@ -207,7 +208,7 @@ public static class CmkLearningCatalog
         });
 
     public static CmkLearningTopic Find(string key) =>
-        All.First(x => x.Key == key);
+        CmkCurriculum.Find(key);
 
     public static CmkLearningResult Assess(string key, int quizIndex, int selectedOption)
     {

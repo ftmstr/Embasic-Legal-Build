@@ -292,9 +292,61 @@
       <DataTemplate DataType="{x:Type vm:CmkLearningHubViewModel}">
         <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="775">
           <StackPanel MaxWidth="830" HorizontalAlignment="Left">
+            <StackPanel.Resources>
+              <Style TargetType="TabControl">
+                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+              </Style>
+              <Style TargetType="TabItem">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Template">
+                  <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                      <Border x:Name="TabBorder" Background="{DynamicResource SurfaceBrush}"
+                              BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="8,7" Margin="1">
+                        <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
+                      </Border>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                          <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                          <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource BackgroundBrush}"/>
+                        </Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </Setter.Value>
+                </Setter>
+              </Style>
+              <Style TargetType="ListBox">
+                <Setter Property="Background" Value="{DynamicResource BackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+              </Style>
+              <Style TargetType="ListBoxItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="Template">
+                  <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                      <Border x:Name="ChoiceBorder" Padding="6" Margin="2" BorderThickness="2"
+                              BorderBrush="Transparent" Background="{DynamicResource BackgroundBrush}">
+                        <ContentPresenter/>
+                      </Border>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                          <Setter TargetName="ChoiceBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                          <Setter TargetName="ChoiceBorder" Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                        </Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </Setter.Value>
+                </Setter>
+              </Style>
+            </StackPanel.Resources>
             <TextBlock FontSize="24" FontWeight="Bold" Text="{Binding Title}" TextWrapping="Wrap"/>
             <TextBlock FontSize="12" Margin="0,8,0,10" TextWrapping="Wrap"
-                       Text="CMK 74 ve devamı • Adlî incelemeler • Yakalama • Tutuklama • Adlî kontrol • Arama ve el koyma • Alternatif çözümler"/>
+                       Text="Genel hükümlerden kanun yollarına · Kavramlar, süreçler ve açıklamalı uygulamalar"/>
             <Border Background="{DynamicResource BackgroundBrush}" Padding="12"
                     BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" CornerRadius="8">
               <StackPanel>
@@ -302,17 +354,48 @@
                 <TextBlock Text="{Binding Warnings}" TextWrapping="Wrap" FontSize="12" Margin="0,5,0,0"/>
               </StackPanel>
             </Border>
-            <TextBlock Margin="0,14,0,3" FontWeight="Bold" Text="Öğrenmek istediğiniz işlem kategorisi"/>
+            <TextBlock Margin="0,14,0,3" FontWeight="Bold" Text="Ceza muhakemesi kategorisi"/>
+            <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
+                      DisplayMemberPath="DisplayName" HorizontalAlignment="Stretch"
+                      AutomationProperties.Name="CMK öğrenme kategorisi">
+              <ComboBox.Resources>
+                <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/></Style>
+              </ComboBox.Resources>
+            </ComboBox>
+            <TextBlock Text="{Binding CategorySummary}" TextWrapping="Wrap" FontSize="12" Margin="0,5,0,10"/>
+            <TextBlock FontWeight="Bold" Text="Bu kategorideki konular" Margin="0,0,0,3"/>
             <ComboBox ItemsSource="{Binding Topics}" SelectedItem="{Binding SelectedTopic, Mode=TwoWay}"
                       DisplayMemberPath="Title" MaxWidth="710" HorizontalAlignment="Left"
-                      AutomationProperties.Name="CMK öğretici konu seçimi"/>
+                      AutomationProperties.Name="CMK öğretici konu seçimi">
+              <ComboBox.Resources>
+                <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/></Style>
+              </ComboBox.Resources>
+            </ComboBox>
             <WrapPanel Margin="0,10,0,5">
-              <TextBlock FontWeight="Bold" Text="{Binding SelectedTopic.Group}" Margin="0,0,14,0"/>
+              <TextBlock FontWeight="Bold" Text="{Binding SelectedCategory.Title}" Margin="0,0,14,0"/>
               <TextBlock FontWeight="Bold" Text="{Binding CurrentReference}" Margin="0,0,14,0"/>
               <TextBlock Text="Güncel konsolide metin: NOT_VERIFIED"/>
             </WrapPanel>
             <TextBlock Text="{Binding SelectedTopic.LearningGoal}" TextWrapping="Wrap" Margin="0,3,0,12"/>
             <TabControl Margin="0,6,0,0" MinHeight="450">
+              <TabItem Header="Anlatım">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="440">
+                  <StackPanel Margin="14">
+                    <TextBlock Text="Kavramı öğren" FontSize="18" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding Lesson.Concept}" TextWrapping="Wrap" Margin="0,8,0,18" FontSize="14"/>
+                    <Border Background="{DynamicResource BackgroundBrush}" Padding="14" CornerRadius="8">
+                      <StackPanel>
+                        <TextBlock Text="Birbirine karıştırma" FontSize="16" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding Lesson.Distinction}" TextWrapping="Wrap" Margin="0,7,0,0" FontSize="14"/>
+                      </StackPanel>
+                    </Border>
+                    <TextBlock Text="Örnek üzerinde düşün" FontSize="16" FontWeight="Bold" Margin="0,18,0,5"/>
+                    <TextBlock Text="{Binding Lesson.Example}" TextWrapping="Wrap" FontSize="14"/>
+                    <TextBlock Text="Şema sekmesinde adımları açın; ardından kısa testi yanıtlayın. Bu içerik güncel madde lafzı değil, kavramsal eğitim taslağıdır."
+                               TextWrapping="Wrap" FontSize="12" Margin="0,20,0,0"/>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
               <TabItem Header="1 · Şema">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="440">
                   <StackPanel Margin="10">
@@ -327,13 +410,17 @@
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     Background="{DynamicResource BackgroundBrush}"
                                     Padding="12" Margin="0,3,0,0">
-                              <StackPanel>
-                                <TextBlock FontWeight="Bold" FontSize="14" Text="{Binding Stage}"/>
-                                <TextBlock Text="{Binding ReviewPrompt}" TextWrapping="Wrap" Margin="0,5,0,5"/>
-                                <TextBlock Text="{Binding DocumentToInspect}" TextWrapping="Wrap" FontSize="11"/>
-                                <TextBlock Text="{Binding Gate}" FontSize="11" FontWeight="Bold"
-                                           TextWrapping="Wrap" Margin="0,6,0,0"/>
-                              </StackPanel>
+                              <Expander IsExpanded="False" HorizontalContentAlignment="Stretch">
+                                <Expander.Header>
+                                  <TextBlock FontWeight="Bold" FontSize="14" Text="{Binding Stage}" TextWrapping="Wrap"/>
+                                </Expander.Header>
+                                <StackPanel Margin="5,7,0,2">
+                                  <TextBlock Text="{Binding ReviewPrompt}" TextWrapping="Wrap" Margin="0,5,0,5"/>
+                                  <TextBlock Text="{Binding DocumentToInspect}" TextWrapping="Wrap" FontSize="11"/>
+                                  <TextBlock Text="{Binding Gate}" FontSize="11" FontWeight="Bold"
+                                             TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                </StackPanel>
+                              </Expander>
                             </Border>
                             <TextBlock Text="↓" FontSize="18" HorizontalAlignment="Center" Margin="0,3,0,1"/>
                           </StackPanel>
@@ -349,19 +436,42 @@
                   <TextBlock FontSize="11" Margin="0,5,0,9" TextWrapping="Wrap"
                              Text="Tabloda kanun maddesi lafzı değil; incelenecek belge ve cevapsız hukuk soruları yer alır."/>
                   <DataGrid ItemsSource="{Binding Matrix}" AutoGenerateColumns="False"
+                            Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextBrush}"
+                            RowBackground="{DynamicResource BackgroundBrush}" AlternatingRowBackground="{DynamicResource SurfaceBrush}"
                             IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False"
                             RowHeaderWidth="0" HeadersVisibility="Column"
                             GridLinesVisibility="Horizontal" Height="350"
                             HorizontalScrollBarVisibility="Auto"
                             VerticalScrollBarVisibility="Auto"
                             AutomationProperties.Name="CMK uygulama kontrol tablosu">
+                    <DataGrid.Resources>
+                      <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                        <Setter Property="Padding" Value="5,8"/>
+                      </Style>
+                      <Style TargetType="DataGridCell">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Style.Triggers>
+                          <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                          </Trigger>
+                        </Style.Triggers>
+                      </Style>
+                      <Style x:Key="CmkMatrixCell" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                        <Setter Property="TextWrapping" Value="Wrap"/>
+                        <Setter Property="Margin" Value="4,6"/>
+                      </Style>
+                    </DataGrid.Resources>
                     <DataGrid.Columns>
-                      <DataGridTextColumn Header="Aşama" Width="120" Binding="{Binding Stage}"/>
-                      <DataGridTextColumn Header="Ön inceleme sorusu" Width="275"
+                      <DataGridTextColumn ElementStyle="{StaticResource CmkMatrixCell}" Header="Aşama" Width="120" Binding="{Binding Stage}"/>
+                      <DataGridTextColumn ElementStyle="{StaticResource CmkMatrixCell}" Header="Ön inceleme sorusu" Width="275"
                                           Binding="{Binding HumanReviewQuestion}"/>
-                      <DataGridTextColumn Header="Aranacak belge" Width="265"
+                      <DataGridTextColumn ElementStyle="{StaticResource CmkMatrixCell}" Header="Aranacak belge" Width="265"
                                           Binding="{Binding DocumentToInspect}"/>
-                      <DataGridTextColumn Header="Açık risk" Width="245"
+                      <DataGridTextColumn ElementStyle="{StaticResource CmkMatrixCell}" Header="Açık risk" Width="245"
                                           Binding="{Binding UnresolvedRisk}"/>
                     </DataGrid.Columns>
                   </DataGrid>
@@ -398,10 +508,15 @@
                   <TextBlock Text="{Binding QuestionTitle}" FontWeight="Bold" FontSize="17"/>
                   <TextBlock Text="{Binding QuizPrompt}" TextWrapping="Wrap" Margin="0,10,0,8"
                              FontSize="14"/>
-                  <ListBox ItemsSource="{Binding Choices}" DisplayMemberPath="DisplayName"
+                  <ListBox ItemsSource="{Binding Choices}"
                            SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
-                           Height="158" HorizontalContentAlignment="Stretch"
-                           AutomationProperties.Name="Senaryo yanıt seçenekleri"/>
+                           MinHeight="158" MaxHeight="235" HorizontalContentAlignment="Stretch"
+                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                           AutomationProperties.Name="Senaryo yanıt seçenekleri">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate><TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap" Margin="3,5"/></DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                   <WrapPanel Margin="0,8,0,6">
                     <Button Content="Yanıtı değerlendir" Command="{Binding AnswerCommand}"/>
                     <Button Content="Sonraki soru" Command="{Binding NextQuestionCommand}"/>
@@ -426,7 +541,10 @@
                   <TextBlock Text="Cumhurbaşkanlığı Mevzuat Bilgi Sistemi"
                              FontWeight="Bold"/>
                   <TextBlock Text="{Binding CanonicalSource}" TextWrapping="Wrap" Margin="0,3,0,10"/>
-                  <TextBlock Text="CMK 5271 — güncel resmî metin adresi (henüz indirilemedi)" />
+                  <TextBlock Text="Kullanıcının resmî CMK DOC bağlantısı (henüz indirilemedi)" TextWrapping="Wrap"/>
+                  <TextBlock Text="{Binding RequestedDocumentUrl}" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                  <TextBlock Text="{Binding SourceRetrievalNote}" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                  <TextBlock Text="CMK 5271 — PDF alternatif adresi (henüz indirilemedi)" TextWrapping="Wrap"/>
                   <TextBlock Text="{Binding OfficialCmkUrl}" TextWrapping="Wrap" Margin="0,3,0,10"/>
                   <TextBlock Text="TCK 5237 — güncel resmî metin adresi (henüz indirilemedi)" />
                   <TextBlock Text="{Binding OfficialTckUrl}" TextWrapping="Wrap" Margin="0,3,0,10"/>
