@@ -24,11 +24,12 @@ public sealed class CmkLearningChecklistRow : ObservableViewModel
         set { if (_reviewed == value) return; _reviewed = value; Changed(); }
     }
 
-    public CmkLearningChecklistRow(CmkLearningStep step)
+    public CmkLearningChecklistRow(CmkLearningStep step, bool reviewed = false)
     {
         Order = step.Order;
         Stage = step.Stage;
         Prompt = step.ReviewPrompt;
+        _reviewed = reviewed;
     }
 }
 
@@ -41,6 +42,9 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
 {
     private readonly HashSet<string> _answered = new(StringComparer.Ordinal);
     private readonly HashSet<string> _correct = new(StringComparer.Ordinal);
+    // TUR025: checklist marks are owned by each topic for this RAM session.
+    // Quiz scores are separate and cannot certify legal compliance.
+    private readonly CmkLearningChecklistSession _checklistSession = new();
     private CmkLearningTopic _selectedTopic = CmkLearningCatalog.All[0];
     private CmkLearningChoice? _selectedChoice;
     private int _questionIndex;
@@ -103,7 +107,9 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     }
     public string LearningProgress => $"{_answered.Count} / {Topics.Sum(t => t.Quiz.Count)} senaryo yanıtlandı; " +
         $"{_correct.Count} öğrenme yanıtı doğru. HUKUKÎ PASS / OTOMATİK KARAR YOK.";
-    public string SessionLabel => "Tamamen çevrimdışı ve RAM'de; kişisel dosya kaydı oluşturulmaz.";
+    public string SessionLabel =>
+        "Tamamen çevrimdışı ve RAM'de. Konu değiştirseniz de o konunun kontrol işaretleri " +
+        "oturum sonuna veya Sıfırla'ya kadar korunur. Hukukî PASS yoktur.";
     public ICommand AnswerCommand { get; }
     public ICommand NextQuestionCommand { get; }
     public ICommand ResetSessionCommand { get; }
@@ -119,12 +125,19 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     }
     private void RebuildChecklist()
     {
+        // The old code created every checkbox as unchecked on topic changes,
+        // silently discarding user learning progress while quiz score survived.
+        // Rehydrate from independent, RAM-only per-topic marks; never disk.
+        string topicKey = SelectedTopic.Key;
         var rows = new ObservableCollection<CmkLearningChecklistRow>(
-            SelectedTopic.Flow.Select(s => new CmkLearningChecklistRow(s)));
+            SelectedTopic.Flow.Select(step => new CmkLearningChecklistRow(
+                step, _checklistSession.IsReviewed(topicKey, step.Order))));
         foreach (var row in rows)
             row.PropertyChanged += (_, e) =>
             {
-                if (e.PropertyName == nameof(CmkLearningChecklistRow.Reviewed))
+                if (e.PropertyName != nameof(CmkLearningChecklistRow.Reviewed)) return;
+                _checklistSession.SetReviewed(topicKey, row.Order, row.Reviewed);
+                if (SelectedTopic.Key == topicKey)
                     Changed(nameof(ChecklistProgress));
             };
         Checklist = rows;
@@ -170,6 +183,8 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
             MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         _answered.Clear();
         _correct.Clear();
+        // Reset every topic, not only the currently displayed checklist.
+        _checklistSession.Reset();
         _questionIndex = 0;
         SelectedChoice = null;
         RebuildChecklist();
