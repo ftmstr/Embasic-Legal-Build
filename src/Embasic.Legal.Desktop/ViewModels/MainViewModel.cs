@@ -98,6 +98,7 @@ public sealed class MainViewModel : ObservableViewModel
     [
         new("home", "Ana Sayfa"),
         new("laws", "Mevzuat"),
+        new("learning", "Öğretici Rehber · CMK 74+"),
         new("alternatives", "Alternatif Çözümler"),
         new("detention", "Tutuklama"),
         new("supervision", "Adli Kontrol"),
@@ -116,6 +117,7 @@ public sealed class MainViewModel : ObservableViewModel
     ];
     private readonly NoteSandboxViewModel _notesSandbox = new();
     private readonly PenaltyMoneyViewModel _penalty = new();
+    private readonly CmkLearningHubViewModel _learningHub = new();
     private readonly SystematicsPage _detention = new(ProceduralWorkflows.Detention, "Tutuklama");
     private readonly SystematicsPage _supervision = new(ProceduralWorkflows.JudicialControl, "Adli Kontrol");
     private readonly SystematicsPage _searchSeizure = new(ProceduralWorkflows.SearchSeizure, "Arama ve El Koyma");
@@ -151,6 +153,7 @@ public sealed class MainViewModel : ObservableViewModel
             "shift" => new DateShiftViewModel(),
             "night" => new NightViewModel(),
             "laws" => new LegislationViewModel(),
+            "learning" => _learningHub,
             "alternatives" => new PlaceholderViewModel("Alternatif Çözümler", "Kaynaklı hukuki karar destek modülü: sonraki turlarda. Üretim NO-GO."),
             "detention" => _detention,
             "supervision" => _supervision,
