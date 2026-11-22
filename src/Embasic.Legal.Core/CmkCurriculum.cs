@@ -434,15 +434,23 @@ public static class CmkCurriculum
         new CmkLearningCategory("sorusturma", "Soruşturma ve kamu davasının açılması", Array.AsReadOnly(new[] { "cmk157-169", "cmk170-174" })),
         new CmkLearningCategory("kovusturma", "Kovuşturma, duruşma ve hüküm", Array.AsReadOnly(new[] { "cmk175-181", "cmk182-196", "cmk197-200", "cmk201-206", "cmk207-218", "cmk219-222", "cmk223-232" })),
         new CmkLearningCategory("magdur", "Mağdur hakları ve katılma", Array.AsReadOnly(new[] { "cmk233-236", "cmk237-243" })),
-        new CmkLearningCategory("ozel", "Özel usuller ve alternatif çözümler", Array.AsReadOnly(new[] { "cmk244-249", "cmk250", "cmk251-252", "cmk253-255", "cmk256-259", "cmk250-253", "tck75" })),
+        new CmkLearningCategory("ozel", "Özel yargılama usulleri", Array.AsReadOnly(new[] { "cmk244-249", "cmk251-252", "cmk256-259" })),
         new CmkLearningCategory("kanunyollari", "İtiraz, istinaf, temyiz ve olağanüstü yollar", Array.AsReadOnly(new[] { "cmk260-266", "cmk267-271", "cmk272-285", "cmk286-307", "cmk308-310", "cmk311-323" })),
         new CmkLearningCategory("son", "Giderler, son ve geçici hükümler", Array.AsReadOnly(new[] { "cmk324-330", "cmk331-335", "cmk-gecici" })),
     });
+
+    // Alternative solutions have their own menu and never duplicate centre topics.
+    public static CmkLearningCategory AlternativeCategory { get; } = new("alternatif", "Alternatif Çözümler",
+        Array.AsReadOnly(new[] { "cmk250", "cmk253-255", "tck75" }));
+    public static IReadOnlyList<CmkLearningCategory> AllCategories { get; } =
+        Array.AsReadOnly(Categories.Append(AlternativeCategory).ToArray());
 
     private static readonly IReadOnlyDictionary<string, CmkLearningTopic> ByKey =
         CmkLearningCatalog.All.Concat(AdditionalTopics).ToDictionary(x => x.Key, StringComparer.Ordinal);
 
     public static IReadOnlyList<CmkLearningTopic> All { get; } = Array.AsReadOnly(
+        AllCategories.SelectMany(x => x.TopicKeys).Select(key => ByKey[key]).ToArray());
+    public static IReadOnlyList<CmkLearningTopic> CentralTopics { get; } = Array.AsReadOnly(
         Categories.SelectMany(x => x.TopicKeys).Select(key => ByKey[key]).ToArray());
 
     private static readonly IReadOnlyDictionary<string, CmkLearningLesson> LegacyLessons =
@@ -464,7 +472,7 @@ public static class CmkCurriculum
         };
 
     public static CmkLearningCategory FindCategory(string key) =>
-        Categories.First(x => x.Key == key);
+        AllCategories.First(x => x.Key == key);
 
     public static CmkLearningTopic Find(string key) => ByKey.TryGetValue(key, out var topic)
         ? topic : throw new InvalidOperationException("Bilinmeyen CMK öğrenme konusu.");

@@ -46,8 +46,8 @@
                            TextWrapping="Wrap" Margin="0,0,0,10"/>
                 <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="learning" HorizontalAlignment="Left"
-                        AutomationProperties.Name="Ana sayfadan CMK öğrenme merkezini aç">
-                  <TextBlock Text="CMK Öğrenme Merkezini Aç" TextWrapping="Wrap"/>
+                        AutomationProperties.Name="Ana sayfadan Ceza Muhakemesi Hukukunu aç">
+                  <TextBlock Text="Ceza Muhakemesi Hukuku — Aç" TextWrapping="Wrap"/>
                 </Button>
                 <WrapPanel Margin="0,10,0,0">
                   <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="cmk:sorusturma">
@@ -59,14 +59,15 @@
                   <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="cmk:kanunyollari">
                     <TextBlock Text="Kanun Yolları" TextWrapping="Wrap"/>
                   </Button>
-                  <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="alternatives">
-                    <TextBlock Text="Alternatif Çözümler" TextWrapping="Wrap"/>
-                  </Button>
                 </WrapPanel>
                 <TextBlock Text="Kavramsal eğitim taslağı · Güncel resmî kanun metni doğrulanmadı (NOT_VERIFIED)."
                            TextWrapping="Wrap" FontSize="12" Margin="0,14,0,0"/>
               </StackPanel>
             </Border>
+            <Button Margin="0,16,0,0" HorizontalAlignment="Left"
+                    Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="alternatives">
+              <TextBlock Text="Alternatif Çözümler — Seri Muhakeme, Uzlaştırma, Ön Ödeme" TextWrapping="Wrap"/>
+            </Button>
             <Button Margin="0,16,0,0" HorizontalAlignment="Left"
                     Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="hub">
               <TextBlock Text="Adli Hesaplama Merkezini Aç" TextWrapping="Wrap"/>
@@ -413,7 +414,7 @@
               <TextBlock Text="Güncel konsolide metin: NOT_VERIFIED"/>
             </WrapPanel>
             <TextBlock Text="{Binding SelectedTopic.LearningGoal}" TextWrapping="Wrap" Margin="0,3,0,12"/>
-            <TabControl Margin="0,6,0,0" MinHeight="450">
+            <TabControl Margin="0,6,0,0" MinHeight="450" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
               <TabItem Header="Anlatım">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="440">
                   <StackPanel Margin="14">
@@ -589,6 +590,11 @@
                   <TextBlock TextWrapping="Wrap" Margin="0,12,0,0"
                              Text="TBMM ilk kabul metinleri güncel kanun değildir. AYM/Danıştay karar asılları ayrıca doğrulanmalıdır. Etkin ağ isteği yapılmaz, eski metin güncel hukuk diye gösterilmez."/>
                 </StackPanel>
+              </TabItem>
+              <TabItem Header="İşlem sistematiği" Visibility="{Binding HasProcedure, Converter={StaticResource BooleanVisibility}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="440">
+                  <ContentControl Content="{Binding Procedure}" Margin="10"/>
+                </ScrollViewer>
               </TabItem>
             </TabControl>
           </StackPanel>

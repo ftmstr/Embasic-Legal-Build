@@ -10,11 +10,12 @@ public sealed class Tur026CmkCurriculumTests
     public void CategoriesOwnEveryTopicExactlyOnceAndRetainLegacyObjectIdentity()
     {
         Assert.Equal(13, CmkCurriculum.Categories.Count);
-        Assert.Equal(51, CmkCurriculum.All.Count);
-        var keys = CmkCurriculum.Categories.SelectMany(x => x.TopicKeys).ToArray();
+        Assert.Equal(50, CmkCurriculum.All.Count);
+        Assert.Equal(47, CmkCurriculum.CentralTopics.Count);
+        var keys = CmkCurriculum.AllCategories.SelectMany(x => x.TopicKeys).ToArray();
         Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(CmkCurriculum.All.Select(x => x.Key), keys);
-        foreach (var category in CmkCurriculum.Categories)
+        foreach (var category in CmkCurriculum.AllCategories)
         {
             Assert.Same(category, CmkCurriculum.FindCategory(category.Key));
             Assert.NotEmpty(category.Topics);
@@ -22,6 +23,18 @@ public sealed class Tur026CmkCurriculumTests
         }
         foreach (var legacy in CmkLearningCatalog.All)
             Assert.Same(legacy, CmkLearningCatalog.Find(legacy.Key));
+    }
+
+    [Fact]
+    public void AlternativesAreSeparateAndDuplicateOverviewIsNotVisible()
+    {
+        var central = CmkCurriculum.CentralTopics.Select(x => x.Key).ToHashSet();
+        Assert.Equal(new[] { "cmk250", "cmk253-255", "tck75" }, CmkCurriculum.AlternativeCategory.TopicKeys);
+        Assert.Empty(CmkCurriculum.AlternativeCategory.TopicKeys.Where(central.Contains));
+        Assert.Contains("cmk251-252", central);
+        Assert.DoesNotContain(CmkCurriculum.All, x => x.Key == "cmk250-253");
+        Assert.Equal(94, CmkCurriculum.CentralTopics.Sum(x => x.Quiz.Count));
+        Assert.Equal(6, CmkCurriculum.AlternativeCategory.Topics.Sum(x => x.Quiz.Count));
     }
 
     [Fact]
@@ -71,14 +84,14 @@ public sealed class Tur026CmkCurriculumTests
                 Assert.False(CmkLearningCatalog.Assess(topic.Key, index, (question.CorrectIndex + 1) % 3).Correct);
             }
         }
-        Assert.Equal(102, CmkCurriculum.All.Sum(x => x.Quiz.Count));
+        Assert.Equal(100, CmkCurriculum.All.Sum(x => x.Quiz.Count));
     }
 
     [Fact]
     public void CrossCategoryNavigationPreservesMarksAndResetCoversNewTopics()
     {
         var state = new CmkLearningChecklistSession();
-        foreach (var category in CmkCurriculum.Categories)
+        foreach (var category in CmkCurriculum.AllCategories)
             foreach (var topic in category.Topics) state.SetReviewed(topic.Key, 2, true);
         foreach (var topic in CmkCurriculum.All) Assert.True(state.IsReviewed(topic.Key, 2));
         state.SetReviewed("cmk311-323", 2, false);

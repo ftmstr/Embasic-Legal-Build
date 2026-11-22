@@ -52,7 +52,22 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     private string _feedback = "Senaryoyu okuyup bir seçenek belirleyin. Puan yalnız öğrenme ilerlemesidir.";
     private ObservableCollection<CmkLearningChecklistRow> _checklist = [];
 
-    public IReadOnlyList<CmkLearningCategory> Categories => CmkCurriculum.Categories;
+    private readonly IReadOnlyDictionary<string, SystematicsPage> _procedures;
+    public bool IsAlternativeMode => SelectedCategory.Key == CmkCurriculum.AlternativeCategory.Key;
+    public IReadOnlyList<CmkLearningCategory> Categories => IsAlternativeMode
+        ? new[] { CmkCurriculum.AlternativeCategory } : CmkCurriculum.Categories;
+    public SystematicsPage? Procedure => _procedures.TryGetValue(SelectedTopic.Key, out var page) ? page : null;
+    public bool HasProcedure => Procedure is not null;
+    private int _selectedTabIndex;
+    public int SelectedTabIndex
+    {
+        get => _selectedTabIndex;
+        set { if (_selectedTabIndex == value) return; _selectedTabIndex = value; Changed(); }
+    }
+    public void OpenCentre()
+    {
+        if (IsAlternativeMode) SelectedCategory = CmkCurriculum.Categories[0];
+    }
     public CmkLearningCategory SelectedCategory
     {
         get => _selectedCategory;
@@ -62,21 +77,28 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
             _selectedCategory = value;
             Changed();
             Changed(nameof(Topics));
+            Changed(nameof(Categories));
+            Changed(nameof(IsAlternativeMode));
+            Changed(nameof(Title));
             Changed(nameof(CategorySummary));
             SelectedTopic = Topics[0];
         }
     }
     public IReadOnlyList<CmkLearningTopic> Topics => SelectedCategory.Topics;
-    public string CategorySummary => $"{Categories.Count} kategori · {CmkCurriculum.All.Count} konu · " +
-        $"{CmkCurriculum.All.Sum(x => x.Quiz.Count)} eğitim sorusu. Seçili kategori: {Topics.Count} konu.";
+    public string CategorySummary => IsAlternativeMode
+        ? $"{Topics.Count} konu · {Topics.Sum(x => x.Quiz.Count)} eğitim sorusu · ayrı Alternatif Çözümler bölümü."
+        : $"{Categories.Count} kategori · {CmkCurriculum.CentralTopics.Count} konu · " +
+          $"{CmkCurriculum.CentralTopics.Sum(x => x.Quiz.Count)} eğitim sorusu. Seçili kategori: {Topics.Count} konu.";
     public CmkLearningLesson Lesson => CmkCurriculum.Explain(SelectedTopic.Key);
     public string RequestedDocumentUrl => CmkCurriculum.RequestedDocumentUrl;
     public string SourceRetrievalNote => CmkCurriculum.SourceRetrievalNote;
     public void OpenCategory(string key) => SelectedCategory = CmkCurriculum.FindCategory(key);
     public void OpenTopic(string topicKey)
     {
+        // Old combined overview now opens the dedicated serial-procedure lesson.
+        if (topicKey == "cmk250-253") topicKey = "cmk250";
         var topic = CmkLearningCatalog.Find(topicKey);
-        SelectedCategory = Categories.First(category => category.TopicKeys.Contains(topicKey));
+        SelectedCategory = CmkCurriculum.AllCategories.First(category => category.TopicKeys.Contains(topicKey));
         SelectedTopic = topic;
     }
     public CmkLearningTopic SelectedTopic
@@ -92,6 +114,9 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
             Changed(nameof(Matrix));
             Changed(nameof(TopicStatus));
             Changed(nameof(Lesson));
+            Changed(nameof(Procedure));
+            Changed(nameof(HasProcedure));
+            SelectedTabIndex = 0;
             _questionIndex = 0;
             SelectedChoice = null;
             Feedback = "Yeni konu seçildi; önce şemayı ve tabloyu inceleyin.";
@@ -106,7 +131,7 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     public string OfficialCmkUrl => CmkLearningCatalog.CurrentCmkUrl;
     public string OfficialTckUrl => CmkLearningCatalog.CurrentTckUrl;
     public string CanonicalSource => CmkLearningCatalog.CanonicalSource;
-    public string Title => "Ceza Muhakemesi Hukuku — Öğrenme Merkezi";
+    public string Title => IsAlternativeMode ? "Alternatif Çözümler" : "Ceza Muhakemesi Hukuku";
     public string Warnings =>
         "EĞİTİM TASLAĞI / NOT_VERIFIED. Mevzuat.gov.tr güncel metni bu paketle eşleştirilmedi. " +
         "Madde başlıkları yol göstericidir, madde lafzı değildir. Süre, yetki, zorlayıcı tedbir " +
@@ -143,8 +168,18 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     public ICommand ResetSessionCommand { get; }
     public ICommand CopyOfficialLinkCommand { get; }
 
-    public CmkLearningHubViewModel()
+    public CmkLearningHubViewModel(SystematicsPage detention, SystematicsPage supervision, SystematicsPage search)
     {
+        _procedures = new Dictionary<string, SystematicsPage>(StringComparer.Ordinal)
+        {
+            ["cmk100-108"] = detention,
+            ["cmk109-115"] = supervision,
+            ["cmk116-122"] = search,
+            ["cmk123-128"] = search,
+            ["cmk128a"] = search,
+            ["cmk129-133"] = search,
+            ["cmk134"] = search
+        };
         RebuildChecklist();
         AnswerCommand = new RelayCommand(_ => Answer());
         NextQuestionCommand = new RelayCommand(_ => Next());
