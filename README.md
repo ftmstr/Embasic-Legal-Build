@@ -1,26 +1,22 @@
-# Embasic Legal 2.0 — Windows Alpha TUR007
+# Embasic Legal
 
-Genuine Windows C#/.NET 10 WPF EXE, NOT a browser launcher. **Alpha / legal production NO-GO.**
+Windows WPF masaüstü uygulamasının güncel geliştirme zinciri bu depodadır.
 
-Features:
-- Two native date screens and one unified Gece Vakti screen, official UYAP timetable unavailable => no invented night times.
-- Original E-terazi assets and light/dark themes. Artwork redistribution rights unverified.
-- 15-law metadata directory and local candidate PDF hashes only; no verified complete official statute corpus.
-- Synthetic-only WPF article note popup, 📝 sticker, AES-256-GCM encrypted note texts, protected backup/restore. Note metadata remains plaintext.
-- TUR007: read-only legacy plaintext note preview, explicit checkbox AND second yes/no consent for atomic migration into encrypted vault. Original legacy plaintext data retained.
-- TUR007: each Tutuklama, Adli Kontrol and Arama ve El Koyma menu heading has its own “… Sistematiği” button, opening a pedagogical diagram and human-operated case-file audit. 12 + 12 + 27 cited steps. No automatic legal compliance decision; audit data stays in RAM unless user explicitly copies it.
-- Manual offline Windows UAT PowerShell script included in CI Alpha artifact. No physical Windows UAT PASS claim.
+## CMK öğrenme merkezi
 
-Windows .NET 10 commands:
+TUR027, TUR026 öğrenme yapısını uygulamanın ana sayfasına ve mevcut **Alternatif Çözümler** menüsüne bağlar. Sol menüdeki **CMK Öğrenme Merkezi** ve 13 kategori de aynı oturumu kullanır: **51 konu, 102 soru**, anlatım, açılır şema, tablo ve kontrol listesi.
+
+- Geliştirme dalı: `tur027/cmk-app-entry-integration`
+- Temel: `tur026/cmk-complete-learning-curriculum` (TUR026 Draft PR #27)
+- Açılış: `Embasic.Legal.exe` → Ana Sayfa → CMK Öğrenme Merkezini Aç
+- Alternatif Çözümler → seri muhakeme / uzlaştırma karşılaştırma dersi; kategori içinden ayrıntılı dersler ve TCK 75 ön ödeme başlığı.
+
+Güncel mevzuat.gov.tr konsolidasyonu **NOT_VERIFIED**; gerçek Windows GUI kabulü **NOT_RUN**. Eğitim puanı hukukî uygunluk veya yetki onayı değildir. Ana dal/üretim yayını yapılmaz.
+
+Windows kaynak derlemesi:
+
+```powershell
 dotnet restore Embasic.Legal.slnx
-dotnet build Embasic.Legal.slnx -c Release
-dotnet test tests/Embasic.Legal.Tests/Embasic.Legal.Tests.csproj -c Release
-dotnet publish src/Embasic.Legal.Desktop/Embasic.Legal.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false
-
-Never enter real investigation secrets in this Alpha. No main merge, tag, installer or release. LICENSE is GPL-3.0 while master prompt requests MIT; rights resolution remains pending.
-
-See docs/TUR007-THREE-PROCEDURAL-SYSTEMATICS.md and docs/TUR007-MIGRATION-AND-WINDOWS-UAT.md.
-
-## TUR007 — Evidence integrity
-
-Danıştay 2007 published judgment reproduction is distinct from court-certified original; 2012 and 2025 sources remain secondary. The Search and Seizure WPF panel records non-identifying reference labels for three procedural timestamps and invalidates computed output on any edit. Court applicability and source authenticity are never certified. See docs/TUR007-COURT-SOURCE-AND-DOCUMENT-GATES.md.
+dotnet build Embasic.Legal.slnx -c Release --no-restore
+dotnet test tests/Embasic.Legal.Tests/Embasic.Legal.Tests.csproj -c Release --no-restore
+```

@@ -3,4 +3,5 @@
   <Project Path="src/Embasic.Legal.Desktop/Embasic.Legal.Desktop.csproj" />
   <Project Path="src/Embasic.Legal.Infrastructure/Embasic.Legal.Infrastructure.csproj" />
   <Project Path="tests/Embasic.Legal.Tests/Embasic.Legal.Tests.csproj" />
+  <Project Path="tools/Embasic.Legal.NavigationSmoke/Embasic.Legal.NavigationSmoke.csproj" />
 </Solution>
