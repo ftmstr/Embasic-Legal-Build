@@ -17,11 +17,35 @@ public static class VaultArtifactRiskGates
             throw new ArgumentException("SQLite yolu zorunludur.", nameof(sqlitePath));
         string absolute = Path.GetFullPath(sqlitePath);
         foreach (string suffix in SidecarSuffixes)
-            if (File.Exists(absolute + suffix))
+        {
+            string candidate = absolute + suffix;
+            // TUR020: File.Exists returns false on directories and may return
+            // false when an entry is inaccessible. A reserved sidecar NAME
+            // occupied by any filesystem entry must be rejected fail-closed.
+            try
+            {
+                _ = File.GetAttributes(candidate);
+            }
+            catch (FileNotFoundException)
+            {
+                continue; // Exact candidate does not exist.
+            }
+            catch (DirectoryNotFoundException)
+            {
+                continue; // Destination parent does not exist yet.
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
                 throw new IOException(
-                    "Kasa/yedek için WAL, SHM veya journal yan dosyası tespit edildi. " +
-                    "Veriyi kaybetmemek için geri yükleme reddedildi; canlı SQLite " +
-                    "oturumunu güvenli kapatıp ayrı kanıtla yeniden inceleyin.");
+                    "SQLite yan dosyasının varlığı/türü güvenle denetlenemedi; işlem reddedildi.", ex);
+            }
+            // Includes regular files, directories and accessible reparse entries.
+            // Do not delete or checkpoint a potentially evidentiary artifact.
+            throw new IOException(
+                "Kasa/yedek WAL, SHM veya journal yan dosya adı dolu " +
+                "(dosya/dizin/yeniden yönlendirme); işlem reddedildi. " +
+                "Yan dosya silinmez, otomatik checkpoint yapılmaz.");
+        }
     }
 
     public static void RequireWitnessOutsideVaultDirectory(
