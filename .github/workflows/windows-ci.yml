@@ -124,7 +124,7 @@ jobs:
           foreach ($marker in @('ReviewAgendaSummary','OpenReviewTopicCommand','NotifyReviewAgendaChanged()','CmkCurriculum.CentralTopics, _answered, _correct')) {
             if (-not $education.Contains($marker)) { throw "TUR030 revision navigation marker missing: $marker" }
           }
-          foreach ($marker in @('Header="5 · Tekrar"','Binding ReviewAgenda','Binding ReviewAgendaSummary','Binding OpenReviewTopicCommand','Header="6 · Kaynak ve güvenlik"')) {
+          foreach ($marker in @('Header="5 · Tekrar"','Binding ReviewAgenda','Binding ReviewAgendaSummary','DataContext.OpenReviewTopicCommand','Header="6 · Kaynak ve güvenlik"')) {
             if (-not $app.Contains($marker)) { throw "TUR030 revision WPF binding marker missing: $marker" }
           }
           Write-Host 'Static WPF/CMK revision agenda, source-gated learning, UAT parser PASS; physical GUI test NOT_RUN.'
