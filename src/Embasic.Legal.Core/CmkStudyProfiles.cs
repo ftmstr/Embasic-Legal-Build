@@ -294,7 +294,7 @@ public static partial class CmkStudyCatalog
             new[]
             {
                 new CmkComparisonRow("İşlev", "Oturum, çağrı, bildirim ve hazırlık işlemlerinin düzenlenmesi.", "Ortaya konulan delillerin taraflarca ele alınması.", "Hazırlık işlemi, tartışmanın yerine geçmez."),
-                new CmkComparisonRow("Savunmayla ilişki", "Hazırlanma ve haberdar olma imkânı incelenir.", "Delil hakkında görüş ve itiraz sunma imkânı incelenir.", "İki imkân birbirini tamamlar."),
+                new CmkComparisonRow("Savunmayla ilişki", "Hazırlanma ve haberdar olma imkânı incelenir.", "Delil hakkında görüş ve itiraz sunma imkânı incelenir.", "Önceden haberdar olmak savunmayı hazırlamayı; duruşmada görüş ve itiraz sunmak ise delilin tartışılmasını sağlar."),
                 new CmkComparisonRow("Belge", "Çağrı, tebliğ ve hazırlık kayıtları aranır.", "Oturum tutanağı ve delilin ele alınma kayıtları aranır.", "Duruşma günü verilmesi bütün bildirimleri kanıtlamaz."),
             },
             "Duruşma günü verilmiş fakat çağrı kayıtları belirsiz. Hangi konu ayrıca araştırılır?",
