@@ -551,6 +551,68 @@
                   <TextBlock FontSize="11" Margin="0,5,0,9" TextWrapping="Wrap"
                              Text="Aynı ölçütü iki kavrama uygulayın; farkın neden önemli olduğunu son sütundan kontrol edin. Hücreler güncel madde lafzı değildir."/>
 <TextBlock Text="{Binding Study.ComparisonTitle}" FontWeight="Bold" FontSize="15" TextWrapping="Wrap" Margin="0,0,0,9"/>
+                                    <!-- TUR031: readable at the actual 900-DIP minimum window width.
+                       Both views bind to the SAME objects, never duplicate legal data. -->
+                  <TextBlock Text="Okuma kartları · dar pencere için" FontSize="14" FontWeight="Bold"
+                             TextWrapping="Wrap" Margin="0,7,0,7"/>
+                  <TextBlock Text="Her satır alt alta okunur. Geniş dört sütunlu özgün tabloyu aşağıdaki başlıktan açabilirsiniz."
+                             TextWrapping="Wrap" FontSize="12" Margin="0,0,0,8"/>
+                  <ItemsControl ItemsSource="{Binding Comparison}"
+                                Visibility="{Binding HasStudy, Converter={StaticResource BooleanVisibility}}"
+                                AutomationProperties.Name="CMK karşılaştırma okuma kartları">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                Background="{DynamicResource BackgroundBrush}" CornerRadius="8"
+                                Padding="13" Margin="0,4,0,7">
+                          <StackPanel>
+                            <TextBlock Text="{Binding Criterion}" TextWrapping="Wrap"
+                                       FontWeight="Bold" FontSize="15" Margin="0,0,0,9"/>
+                            <TextBlock Text="Birinci kavram" FontWeight="Bold" FontSize="12"/>
+                            <TextBlock Text="{Binding Left}" TextWrapping="Wrap" Margin="0,3,0,11"/>
+                            <TextBlock Text="İkinci kavram" FontWeight="Bold" FontSize="12"/>
+                            <TextBlock Text="{Binding Right}" TextWrapping="Wrap" Margin="0,3,0,11"/>
+                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="5" Padding="10">
+                              <StackPanel>
+                                <TextBlock Text="Neden önemli?" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock Text="{Binding Reason}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                              </StackPanel>
+                            </Border>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <ItemsControl ItemsSource="{Binding Matrix}"
+                                Visibility="{Binding NoStudy, Converter={StaticResource BooleanVisibility}}"
+                                AutomationProperties.Name="CMK işlem kontrol okuma kartları">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                Background="{DynamicResource BackgroundBrush}" CornerRadius="8"
+                                Padding="13" Margin="0,4,0,7">
+                          <StackPanel>
+                            <TextBlock Text="{Binding Stage}" TextWrapping="Wrap"
+                                       FontWeight="Bold" FontSize="15" Margin="0,0,0,9"/>
+                            <TextBlock Text="Ön inceleme sorusu" FontWeight="Bold" FontSize="12"/>
+                            <TextBlock Text="{Binding HumanReviewQuestion}" TextWrapping="Wrap" Margin="0,3,0,11"/>
+                            <TextBlock Text="Aranacak belge" FontWeight="Bold" FontSize="12"/>
+                            <TextBlock Text="{Binding DocumentToInspect}" TextWrapping="Wrap" Margin="0,3,0,11"/>
+                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="5" Padding="10">
+                              <StackPanel>
+                                <TextBlock Text="Açık risk" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock Text="{Binding UnresolvedRisk}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                              </StackPanel>
+                            </Border>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <Expander Header="Geniş dört sütunlu tabloyu göster · yatay kaydırma"
+                            IsExpanded="False" Margin="0,13,0,0"
+                            AutomationProperties.Name="CMK özgün dört sütunlu tablo görünümü">
+                    <StackPanel Margin="0,9,0,0">
                   <DataGrid ItemsSource="{Binding Comparison}" Visibility="{Binding HasStudy, Converter={StaticResource BooleanVisibility}}" AutoGenerateColumns="False"
                             Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextBrush}"
                             RowBackground="{DynamicResource BackgroundBrush}" AlternatingRowBackground="{DynamicResource SurfaceBrush}"
@@ -631,6 +693,8 @@
                                           Binding="{Binding UnresolvedRisk}"/>
                     </DataGrid.Columns>
                   </DataGrid>
+                    </StackPanel>
+                  </Expander>
                 </StackPanel>
               </TabItem>
               <TabItem Header="3 · Kontrol listesi">
