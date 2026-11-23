@@ -690,7 +690,44 @@
                              FontSize="11" TextWrapping="Wrap"/>
                 </StackPanel>
               </TabItem>
-              <TabItem Header="5 · Kaynak ve güvenlik">
+              <!-- TUR030: in-session, source-gated revision priorities; NO persistent profiling. -->
+              <TabItem Header="5 · Tekrar">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="440">
+                  <StackPanel Margin="12">
+                    <TextBlock Text="Tekrar ve eksik konular" FontSize="18" FontWeight="Bold"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,7,0,8"
+                               Text="İlk denemede yanlış yapılan sorular, 'Tekrar çalışacağım' kartları ve başlanmış ancak tamamlanmamış etkinlikler bir arada görünür. Çalışılmamış dersler başarısız sayılmaz."/>
+                    <TextBlock Text="{Binding ReviewAgendaSummary}" TextWrapping="Wrap"
+                               FontWeight="Bold" Margin="0,0,0,10"/>
+                    <Border Background="{DynamicResource BackgroundBrush}" Padding="10" CornerRadius="7"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Margin="0,0,0,8">
+                      <TextBlock TextWrapping="Wrap"
+                                 Text="Bu kişisel RAM oturumu rehberidir. Test puanı veya tamamlanmış kontrol listesi güncel mevzuat, delil ya da hukukî işlem uygunluğu onayı değildir. NOT_VERIFIED."/>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding ReviewAgenda}"
+                                  AutomationProperties.Name="CMK tekrar gerektiren konular listesi">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
+                                  CornerRadius="8" Padding="12" Margin="0,5,0,5">
+                            <StackPanel>
+                              <TextBlock Text="{Binding DisplayTitle}" FontSize="15" FontWeight="Bold"
+                                         TextWrapping="Wrap"/>
+                              <TextBlock Text="{Binding ReviewReason}" TextWrapping="Wrap"
+                                         Margin="0,6,0,8" FontSize="12"/>
+                              <Button Content="Derse dön ve tekrar çalış" HorizontalAlignment="Left"
+                                      Command="{Binding DataContext.OpenReviewTopicCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                      CommandParameter="{Binding TopicKey}"
+                                      AutomationProperties.Name="Seçili CMK tekrar dersini aç"/>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+              <TabItem Header="6 · Kaynak ve güvenlik">
                 <StackPanel Margin="12">
                   <TextBlock FontSize="17" FontWeight="Bold" Text="Kanonik hukuk kaynağı"/>
                   <TextBlock Text="{Binding TopicStatus}" TextWrapping="Wrap" Margin="0,8,0,11"/>

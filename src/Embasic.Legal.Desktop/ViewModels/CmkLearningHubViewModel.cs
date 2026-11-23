@@ -129,6 +129,7 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
             Feedback = "Yeni konu seçildi; önce şemayı ve tabloyu inceleyin.";
             RebuildChecklist();
             NotifyQuizChanged();
+            NotifyReviewAgendaChanged();
         }
     }
     public CmkStudyProfile? Study => CmkStudyCatalog.TryFind(SelectedTopic.Key);
@@ -169,7 +170,11 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     private void RebuildRecallCards()
     {
         RecallCards = new(Study?.Cards.Select((card, index) => new CmkRecallCardViewModel(card,
-            SelectedTopic.Key, index, _studySession, () => Changed(nameof(RecallSummary)))) ?? []);
+            SelectedTopic.Key, index, _studySession, () =>
+            {
+                Changed(nameof(RecallSummary));
+                NotifyReviewAgendaChanged();
+            })) ?? []);
     }
     private void SelectFlow(object? value)
     {
@@ -221,6 +226,31 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     public string SessionLabel =>
         "Tamamen çevrimdışı ve RAM'de. Konu değiştirseniz de o konunun kontrol işaretleri " +
         "oturum sonuna veya Sıfırla'ya kadar korunur. Hukukî PASS yoktur.";
+
+    // TUR030: topic-specific learning review list. It is recomputed from
+    // in-memory activity, and never stores case data or claims legal mastery.
+    public IReadOnlyList<CmkReviewAgendaItem> ReviewAgenda =>
+        CmkReviewAgendaPlanner.Build(CmkCurriculum.CentralTopics, _answered, _correct,
+            _recovered, _studySession.Rating, _checklistSession.ReviewedCount);
+    public string ReviewAgendaSummary => ReviewAgenda.Count == 0
+        ? "Henüz tekrar gerektirdiği işaretlenmiş bir konu yok. Çalışılmamış konular başarısız sayılmaz."
+        : $"{ReviewAgenda.Count} konu tekrar listesinde. İlk yanlış yanıtlar ve 'Tekrar çalışacağım' " +
+          "kartları önceliklidir. Bu liste başarı, kaynak veya hukukî uygunluk sertifikası değildir.";
+    public ICommand OpenReviewTopicCommand { get; }
+    private void NotifyReviewAgendaChanged()
+    {
+        Changed(nameof(ReviewAgenda));
+        Changed(nameof(ReviewAgendaSummary));
+    }
+    private void OpenReviewTopic(object? value)
+    {
+        if (value is not string key || !CmkCurriculum.CentralTopics.Any(t => t.Key == key))
+            return;
+        // Preserve the common RAM session; route through the same curriculum
+        // navigation as the sidebar, without creating duplicate lesson pages.
+        OpenTopic(key);
+        SelectedTabIndex = 0;
+    }
     public ICommand AnswerCommand { get; }
     public ICommand NextQuestionCommand { get; }
     public ICommand ResetSessionCommand { get; }
@@ -243,6 +273,7 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
         SelectFlowCommand = new RelayCommand(SelectFlow);
         NextFlowCommand = new RelayCommand(_ => SelectFlow(_flowOrder % Flow.Count + 1));
         BranchCommand = new RelayCommand(SelectBranch);
+        OpenReviewTopicCommand = new RelayCommand(OpenReviewTopic);
         AnswerCommand = new RelayCommand(_ => Answer());
         NextQuestionCommand = new RelayCommand(_ => Next());
         ResetSessionCommand = new RelayCommand(_ => Reset());
@@ -263,7 +294,10 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
                 if (e.PropertyName != nameof(CmkLearningChecklistRow.Reviewed)) return;
                 _checklistSession.SetReviewed(topicKey, row.Order, row.Reviewed);
                 if (SelectedTopic.Key == topicKey)
+                {
                     Changed(nameof(ChecklistProgress));
+                    NotifyReviewAgendaChanged();
+                }
             };
         Checklist = rows;
     }
@@ -296,6 +330,7 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
         if (!firstAttempt && result.Correct && !_correct.Contains(key)) _recovered.Add(key);
         Feedback = result.Feedback + (!firstAttempt ? "\nBu bir tekrar denemesidir; ilk yanıt puanı değiştirilmedi." : "");
         Changed(nameof(LearningProgress));
+        NotifyReviewAgendaChanged();
     }
     private void Next()
     {
@@ -322,6 +357,7 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
         RebuildChecklist();
         Feedback = "Eğitim oturumu sıfırlandı. Mevzuat kaynağı hâlâ NOT_VERIFIED.";
         NotifyQuizChanged();
+        NotifyReviewAgendaChanged();
     }
     private void CopyOfficialLink()
     {

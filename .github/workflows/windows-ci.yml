@@ -48,13 +48,13 @@ jobs:
       - name: Package manual offline Windows UAT collector
         shell: pwsh
         run: |
-          Copy-Item -LiteralPath 'tools/TUR029-Windows-UAT.ps1' -Destination 'dist/EmbasicLegal/TUR029-Windows-UAT.ps1'
+          Copy-Item -LiteralPath 'tools/TUR030-Windows-UAT.ps1' -Destination 'dist/EmbasicLegal/TUR030-Windows-UAT.ps1'
       - name: Static WPF and UAT syntax checks (NOT a physical GUI test)
         shell: pwsh
         run: |
           $parseErrors = $null
           $tokens = $null
-          [System.Management.Automation.Language.Parser]::ParseFile('tools/TUR029-Windows-UAT.ps1',[ref]$tokens,[ref]$parseErrors) | Out-Null
+          [System.Management.Automation.Language.Parser]::ParseFile('tools/TUR030-Windows-UAT.ps1',[ref]$tokens,[ref]$parseErrors) | Out-Null
           if ($parseErrors.Count -gt 0) { throw "PowerShell parser rejected UAT: $($parseErrors.Count)" }
           [xml]$screen = Get-Content 'src/Embasic.Legal.Desktop/App.xaml' -Raw
           $raw = $screen.OuterXml
@@ -63,61 +63,71 @@ jobs:
           }
           $vm = Get-Content 'src/Embasic.Legal.Desktop/ViewModels/NoteSandboxViewModel.cs' -Raw
           foreach ($marker in @('AUTO_SQLITE_METADATA_CONSENT','AllowAutomaticSqliteBackup(forDelete: false)','AllowAutomaticSqliteBackup(forDelete: true)','RequireApprovalForDeletion()','_automaticBackupConsent.Reset()')) {
-            if (-not $vm.Contains($marker)) { throw "Missing TUR029 consent marker: $marker" }
+            if (-not $vm.Contains($marker)) { throw "Missing TUR030 consent marker: $marker" }
           }
           $riskGate = Get-Content 'src/Embasic.Legal.Infrastructure/VaultArtifactRiskGates.cs' -Raw
           foreach ($marker in @('File.GetAttributes(candidate)','FileNotFoundException','DirectoryNotFoundException','SQLite yan dosyasının varlığı/türü')) {
-            if (-not $riskGate.Contains($marker)) { throw "TUR029 entry-type fail-closed marker absent: $marker" }
+            if (-not $riskGate.Contains($marker)) { throw "TUR030 entry-type fail-closed marker absent: $marker" }
           }
           $vault = Get-Content 'src/Embasic.Legal.Infrastructure/EncryptedArticleNotes.cs' -Raw
           foreach ($marker in @('using var authenticated = new EncryptedArticleNotes(', 'readOnlyExisting: true', 'if (existing && !readOnlyExisting)')) {
-            if (-not $vault.Contains($marker)) { throw "Missing TUR029 pre-auth read-only gate marker: $marker" }
+            if (-not $vault.Contains($marker)) { throw "Missing TUR030 pre-auth read-only gate marker: $marker" }
           }
           $vaultGate = Get-Content 'src/Embasic.Legal.Infrastructure/EncryptedArticleNotes.cs' -Raw
           $entryIndex = $vaultGate.IndexOf('VaultArtifactRiskGates.RequireNoSqliteSidecars(fullPath);', [System.StringComparison]::Ordinal)
           $openIndex = $vaultGate.IndexOf('_store = new ArticleNoteStore(fullPath', [System.StringComparison]::Ordinal)
           if ($entryIndex -lt 0 -or $openIndex -lt 0 -or $entryIndex -gt $openIndex) {
-            throw 'TUR029 normal vault startup sidecar guard absent or placed after SQLite open.'
+            throw 'TUR030 normal vault startup sidecar guard absent or placed after SQLite open.'
           }
           $vaultRestore = Get-Content 'src/Embasic.Legal.Infrastructure/EncryptedArticleNotes.cs' -Raw
           $vaultArtifact = Get-Content 'src/Embasic.Legal.Infrastructure/VaultArtifactRiskGates.cs' -Raw
           foreach ($marker in @('RequireUnusedRollbackDestination(rollbackDestination)', 'RequireUnusedRollbackDestination(rollbackDestination!)')) {
-            if (-not $vaultRestore.Contains($marker)) { throw "Missing TUR029 restore rollback guard marker: $marker" }
+            if (-not $vaultRestore.Contains($marker)) { throw "Missing TUR030 restore rollback guard marker: $marker" }
           }
           foreach ($marker in @('public static void RequireUnusedRollbackDestination', 'RequireNoSqliteSidecars(absolute)', 'File.GetAttributes(absolute)')) {
-            if (-not $vaultArtifact.Contains($marker)) { throw "Missing TUR029 rollback destination entry gate: $marker" }
+            if (-not $vaultArtifact.Contains($marker)) { throw "Missing TUR030 rollback destination entry gate: $marker" }
           }
           $app = Get-Content 'src/Embasic.Legal.Desktop/App.xaml' -Raw
           $main = Get-Content 'src/Embasic.Legal.Desktop/ViewModels/MainViewModel.cs' -Raw
           $education = Get-Content 'src/Embasic.Legal.Desktop/ViewModels/CmkLearningHubViewModel.cs' -Raw
           $catalog = Get-Content 'src/Embasic.Legal.Core/CmkLearningCatalog.cs' -Raw
           foreach ($marker in @('CmkLearningHubViewModel','Karşılaştırmalı kontrol matrisi','Yanıtı değerlendir','İşlem akışını öğren','NOT_VERIFIED')) {
-            if (-not $app.Contains($marker)) { throw "Missing TUR029 WPF learning UI marker: $marker" }
+            if (-not $app.Contains($marker)) { throw "Missing TUR030 WPF learning UI marker: $marker" }
           }
-          if (-not $main.Contains('"learning" => OpenLearningCentre()')) { throw 'TUR029 navigation missing' }
+          if (-not $main.Contains('"learning" => OpenLearningCentre()')) { throw 'TUR030 navigation missing' }
           foreach ($marker in @('CmkLearningCatalog.Assess(', 'AnswerCommand', 'NextQuestionCommand', 'ResetSessionCommand', 'ChecklistProgress')) {
-            if (-not $education.Contains($marker)) { throw "Missing TUR029 interactive VM marker: $marker" }
+            if (-not $education.Contains($marker)) { throw "Missing TUR030 interactive VM marker: $marker" }
           }
           foreach ($marker in @('"cmk74"', '"cmk78-80"', '"cmk134"', '"cmk250-253"', '"tck75"', 'LegalComplianceCertified: false', 'NOT_VERIFIED')) {
-            if (-not $catalog.Contains($marker)) { throw "TUR029 source-gated catalog incomplete: $marker" }
+            if (-not $catalog.Contains($marker)) { throw "TUR030 source-gated catalog incomplete: $marker" }
           }
           $checklistModel = Get-Content 'src/Embasic.Legal.Core/CmkLearningChecklistSession.cs' -Raw
           foreach ($marker in @('class CmkLearningChecklistSession','SetReviewed(string topicKey','IsReviewed(string topicKey','LegalComplianceCertified => false','NOT_VERIFIED')) {
-            if (-not $checklistModel.Contains($marker)) { throw "TUR029 core topic checklist marker absent: $marker" }
+            if (-not $checklistModel.Contains($marker)) { throw "TUR030 core topic checklist marker absent: $marker" }
           }
           foreach ($marker in @('new CmkLearningChecklistRow(', '_checklistSession.IsReviewed(topicKey, step.Order)', '_checklistSession.SetReviewed(topicKey, row.Order, row.Reviewed)', '_checklistSession.Reset()')) {
-            if (-not $education.Contains($marker)) { throw "TUR029 topic state binding marker absent: $marker" }
+            if (-not $education.Contains($marker)) { throw "TUR030 topic state binding marker absent: $marker" }
           }
           foreach ($marker in @('Ceza Muhakemesi Hukuku', 'CmkCurriculum.Categories.Select', '_learningHub.OpenCategory(key[4..])')) {
-            if (-not $main.Contains($marker)) { throw "Missing TUR029 category navigation: $marker" }
+            if (-not $main.Contains($marker)) { throw "Missing TUR030 category navigation: $marker" }
           }
           foreach ($marker in @('Binding Categories', 'Binding SelectedCategory', 'Binding Lesson.Concept', 'Binding Lesson.Distinction', 'Binding Lesson.Example', 'Binding RequestedDocumentUrl', 'Binding FlowChoices')) {
-            if (-not $app.Contains($marker)) { throw "Missing TUR029 curriculum UI: $marker" }
+            if (-not $app.Contains($marker)) { throw "Missing TUR030 curriculum UI: $marker" }
           }
           foreach ($marker in @('Binding Study.Objectives', 'Binding RecallCards', 'Binding BranchChoices', 'Binding BranchFeedback', 'Binding Comparison', 'Binding ActiveFlow.ReviewPrompt')) {
-            if (-not $app.Contains($marker)) { throw "Missing TUR029 active-learning UI: $marker" }
+            if (-not $app.Contains($marker)) { throw "Missing TUR030 active-learning UI: $marker" }
           }
-          Write-Host 'Static WPF/CMK category navigation/lesson bindings/RAM checklist/source gates PASS; physical GUI test NOT_RUN.'
+          $agenda = Get-Content 'src/Embasic.Legal.Core/CmkReviewAgendaPlanner.cs' -Raw
+          foreach ($marker in @('CmkReviewAgendaPlanner', 'IncorrectFirstAnswers', 'CmkRecallRating.Review', 'NOT_VERIFIED', 'LegalComplianceCertified => false')) {
+            if (-not $agenda.Contains($marker)) { throw "TUR030 targeted revision source marker missing: $marker" }
+          }
+          foreach ($marker in @('ReviewAgendaSummary','OpenReviewTopicCommand','NotifyReviewAgendaChanged()','CmkCurriculum.CentralTopics, _answered, _correct')) {
+            if (-not $education.Contains($marker)) { throw "TUR030 revision navigation marker missing: $marker" }
+          }
+          foreach ($marker in @('Header="5 · Tekrar"','Binding ReviewAgenda','Binding ReviewAgendaSummary','Binding OpenReviewTopicCommand','Header="6 · Kaynak ve güvenlik"')) {
+            if (-not $app.Contains($marker)) { throw "TUR030 revision WPF binding marker missing: $marker" }
+          }
+          Write-Host 'Static WPF/CMK revision agenda, source-gated learning, UAT parser PASS; physical GUI test NOT_RUN.'
       - name: Hash-covered CI build provenance (unsigned metadata, not an approval)
         shell: pwsh
         run: |
@@ -125,7 +135,7 @@ jobs:
           if (-not $head) { $head = '${{ github.sha }}' }
           if ($head -notmatch '^[a-f0-9]{40}$') { throw 'No valid GitHub source head SHA.' }
           $record = [ordered]@{
-            product = 'Embasic Legal Windows TUR029 Alpha'
+            product = 'Embasic Legal Windows TUR030 Alpha'
             repository = 'ftmstr/Embasic-Legal-Build'
             git_head_sha = $head
             checkout_sha = (git rev-parse HEAD).Trim()
@@ -140,7 +150,7 @@ jobs:
             evidence_grade = 'CI_UNSIGNED_HASHED_METADATA_NOT_PHYSICAL_ACCEPTANCE'
           }
           $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath 'dist/EmbasicLegal/BUILD_PROVENANCE.json' -Encoding utf8
-          Write-Host "TUR029 provenance created from GitHub head: $head"
+          Write-Host "TUR030 provenance created from GitHub head: $head"
       - name: SHA-256 evidence
         shell: pwsh
         run: |
@@ -154,6 +164,6 @@ jobs:
             } | Set-Content -Encoding utf8 dist/EmbasicLegal/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Embasic-Legal-TUR029-Windows-Alpha-NOT-FINAL
+          name: Embasic-Legal-TUR030-Windows-Alpha-NOT-FINAL
           path: dist/EmbasicLegal/
           if-no-files-found: error
