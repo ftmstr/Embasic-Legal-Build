@@ -157,7 +157,7 @@ public sealed class MainViewModel : ObservableViewModel
     private CmkLearningHubViewModel OpenProcedure(string topicKey)
     {
         _learningHub.OpenTopic(topicKey);
-        _learningHub.SelectedTabIndex = 6;
+        _learningHub.SelectedTabIndex = CmkLearningHubViewModel.ProcedureTabIndex;
         return _learningHub;
     }
 
