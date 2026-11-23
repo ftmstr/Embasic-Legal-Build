@@ -30,7 +30,7 @@ public sealed class Tur026CmkCurriculumTests
     {
         var central = CmkCurriculum.CentralTopics.Select(x => x.Key).ToHashSet();
         Assert.Equal(new[] { "cmk250", "cmk253-255", "tck75" }, CmkCurriculum.AlternativeCategory.TopicKeys);
-        Assert.Empty(CmkCurriculum.AlternativeCategory.TopicKeys.Where(central.Contains));
+        Assert.DoesNotContain(CmkCurriculum.AlternativeCategory.TopicKeys, central.Contains);
         Assert.Contains("cmk251-252", central);
         Assert.DoesNotContain(CmkCurriculum.All, x => x.Key == "cmk250-253");
         Assert.Equal(94, CmkCurriculum.CentralTopics.Sum(x => x.Quiz.Count));

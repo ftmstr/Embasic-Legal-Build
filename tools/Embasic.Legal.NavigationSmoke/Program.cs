@@ -84,6 +84,45 @@ internal static class Program
             Require(!hub.IsAlternativeMode && hub.SelectedCategory.Key == "ozel",
                 "Simplified trial remains inside criminal procedure law");
             Require(hub.TopicStatus.Contains("NOT_VERIFIED"), "Consolidation does not certify current legislation");
+            hub.OpenTopic("cmk1-2");
+            Require(hub.HasStudy && hub.RecallCards.Count == 3 && hub.Comparison.Count == 3,
+                "Central lesson exposes active-learning cards and genuine comparison");
+            hub.SelectFlowCommand.Execute(3);
+            Require(hub.ActiveFlow.Order == 3 && hub.FlowChoices.Single(x => x.Active).Order == 3,
+                "Selecting diagram stage changes active explanation");
+            hub.NextFlowCommand.Execute(null);
+            Require(hub.ActiveFlow.Order == 4, "Next diagram stage advances interaction");
+            var card = hub.RecallCards[0];
+            Require(!card.IsRevealed, "Recall answer starts hidden");
+            card.RevealCommand.Execute(null);
+            card.RememberCommand.Execute(null);
+            Require(card.IsRevealed && hub.RecallSummary.Contains("Hatırladım: 1 / 3"),
+                "Recall reveal and self-assessment commands update progress");
+            int correct = hub.Study!.BranchCase.CorrectIndex;
+            int wrong = (correct + 1) % 3;
+            hub.BranchCommand.Execute(wrong);
+            Require(hub.BranchChoices.Single(x => x.Selected).Index == wrong
+                && hub.BranchFeedback.Contains("YENİDEN İNCELEYİN"),
+                "Wrong diagram branch shows its own corrective feedback");
+            int quizCorrect = hub.Study!.Quiz[0].CorrectIndex;
+            int quizWrong = (quizCorrect + 1) % 3;
+            hub.SelectedChoice = hub.Choices[quizWrong];
+            hub.AnswerCommand.Execute(null);
+            hub.SelectedChoice = hub.Choices[quizCorrect];
+            hub.AnswerCommand.Execute(null);
+            Require(hub.LearningProgress.Contains("İlk yanıtta doğru: 0")
+                && hub.LearningProgress.Contains("sonra doğru: 1"),
+                "Retry teaches correct answer without increasing first-attempt score");
+            hub.AnswerCommand.Execute(null);
+            Require(hub.LearningProgress.Contains("sonra doğru: 1"), "Repeated correct retry never duplicates credit");
+            hub.OpenTopic("cmk134");
+            hub.OpenTopic("cmk1-2");
+            Require(hub.RecallCards[0].IsRevealed && hub.RecallSummary.Contains("Hatırladım: 1 / 3")
+                && hub.BranchChoices.Single(x => x.Selected).Index == wrong,
+                "Recall and branch state survive topic navigation");
+            app.NavigateCommand.Execute("alternatives");
+            Require(!hub.HasStudy && hub.RecallCards.Count == 0,
+                "Alternative section retains its own existing lesson interface");
             detention.FileCode = "";
             search.SeizureEvidence = "";
             app.SecureCloseNotesOnExit();

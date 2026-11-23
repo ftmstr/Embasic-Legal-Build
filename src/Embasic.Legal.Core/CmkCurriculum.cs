@@ -12,7 +12,7 @@ public static class CmkCurriculum
 {
     public const string RequestedDocumentUrl = "https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5271.doc";
     public const string SourceStatus = "NOT_VERIFIED";
-    public const string SourceRetrievalNote = "22.11.2026: Resmî DOC/PDF erişimi zaman aşımı; tarayıcı DOC erişimi ERR_BLOCKED_BY_CLIENT. Metin baytları ve güncel yürürlük doğrulanmadı.";
+    public const string SourceRetrievalNote = "23.11.2026: Resmî DOC/PDF erişimi yeniden zaman aşımına uğradı. Güncel metin baytları ve yürürlük doğrulanmadı.";
 
     private static CmkLearningTopic Teach(string id, string title, string locator,
         string concept, string distinction, string example, string[] stages, string[] guidance,

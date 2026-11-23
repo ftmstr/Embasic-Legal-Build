@@ -42,6 +42,10 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
 {
     private readonly HashSet<string> _answered = new(StringComparer.Ordinal);
     private readonly HashSet<string> _correct = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _recovered = new(StringComparer.Ordinal);
+    private readonly CmkStudySession _studySession = new();
+    private ObservableCollection<CmkRecallCardViewModel> _recallCards = [];
+    private int _flowOrder = 1;
     // TUR025: checklist marks are owned by each topic for this RAM session.
     // Quiz scores are separate and cannot certify legal compliance.
     private readonly CmkLearningChecklistSession _checklistSession = new();
@@ -114,6 +118,9 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
             Changed(nameof(Matrix));
             Changed(nameof(TopicStatus));
             Changed(nameof(Lesson));
+            _flowOrder = 1;
+            NotifyStudyChanged();
+            RebuildRecallCards();
             Changed(nameof(Procedure));
             Changed(nameof(HasProcedure));
             SelectedTabIndex = 0;
@@ -124,7 +131,57 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
             NotifyQuizChanged();
         }
     }
-    public IReadOnlyList<CmkLearningStep> Flow => SelectedTopic.Flow;
+    public CmkStudyProfile? Study => CmkStudyCatalog.TryFind(SelectedTopic.Key);
+    public bool HasStudy => Study is not null;
+    public bool NoStudy => !HasStudy;
+    public IReadOnlyList<CmkLearningStep> Flow => Study?.Flow ?? SelectedTopic.Flow;
+    public IReadOnlyList<CmkFlowChoice> FlowChoices => Flow.Select(step =>
+        new CmkFlowChoice(step.Order, step.Stage, step.Order == _flowOrder)).ToArray();
+    public CmkLearningStep ActiveFlow => Flow.First(step => step.Order == _flowOrder);
+    public string FlowPosition => $"Adım {_flowOrder} / {Flow.Count}";
+    public IReadOnlyList<CmkComparisonRow> Comparison => Study?.Comparison ?? [];
+    public ObservableCollection<CmkRecallCardViewModel> RecallCards
+    {
+        get => _recallCards;
+        private set { _recallCards = value; Changed(); Changed(nameof(RecallSummary)); }
+    }
+    public string RecallSummary => Study is null ? "" :
+        $"Hatırladım: {Enumerable.Range(0, Study.Cards.Count).Count(i => _studySession.Rating(SelectedTopic.Key, i) == CmkRecallRating.Remembered)} / {Study.Cards.Count}; " +
+        $"tekrar: {Enumerable.Range(0, Study.Cards.Count).Count(i => _studySession.Rating(SelectedTopic.Key, i) == CmkRecallRating.Review)}. " +
+        "Bu kişisel özdeğerlendirmedir; öğrenme veya hukukî uygunluk belgesi değildir.";
+    public IReadOnlyList<CmkBranchChoice> BranchChoices => Study is null ? [] :
+        Study.BranchCase.Options.Select((option, i) => new CmkBranchChoice(i, option.Text,
+            _studySession.Branch(SelectedTopic.Key) == i)).ToArray();
+    public string BranchFeedback => Study is null ? "" : _studySession.Branch(SelectedTopic.Key) is int selected
+        ? CmkStudyCatalog.AssessBranch(SelectedTopic.Key, selected).Feedback
+        : "Önce olguyu okuyun; şemada bir yol seçip gerekçesini karşılaştırın.";
+    private IReadOnlyList<CmkLearningQuizQuestion> CurrentQuestions => Study is null ? SelectedTopic.Quiz :
+        Study.Quiz.Select(question => new CmkLearningQuizQuestion(question.Prompt,
+            question.Options.Select(option => option.Text).ToArray(), question.CorrectIndex, "")).ToArray();
+    public ICommand SelectFlowCommand { get; }
+    public ICommand NextFlowCommand { get; }
+    public ICommand BranchCommand { get; }
+    private void NotifyStudyChanged()
+    {
+        foreach (var name in new[] { nameof(Study), nameof(HasStudy), nameof(NoStudy), nameof(FlowChoices),
+            nameof(ActiveFlow), nameof(FlowPosition), nameof(Comparison), nameof(BranchChoices), nameof(BranchFeedback) }) Changed(name);
+    }
+    private void RebuildRecallCards()
+    {
+        RecallCards = new(Study?.Cards.Select((card, index) => new CmkRecallCardViewModel(card,
+            SelectedTopic.Key, index, _studySession, () => Changed(nameof(RecallSummary)))) ?? []);
+    }
+    private void SelectFlow(object? value)
+    {
+        if (value is not int order || !Flow.Any(step => step.Order == order)) return;
+        _flowOrder = order; Changed(nameof(FlowChoices)); Changed(nameof(ActiveFlow)); Changed(nameof(FlowPosition));
+    }
+    private void SelectBranch(object? value)
+    {
+        if (Study is null || value is not int option) return;
+        _studySession.SelectBranch(SelectedTopic.Key, option);
+        Changed(nameof(BranchChoices)); Changed(nameof(BranchFeedback));
+    }
     public IReadOnlyList<CmkLearningTableRow> Matrix => SelectedTopic.Matrix;
     public string CurrentReference => SelectedTopic.ArticleLocator;
     public string TopicStatus => SelectedTopic.SourceNotice;
@@ -143,10 +200,10 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
     }
     public string ChecklistProgress => $"{Checklist.Count(x => x.Reviewed)} / {Checklist.Count} belge kontrolü " +
         "kullanıcı tarafından işaretlendi (asıl belge veya uygunluk doğrulanmadı).";
-    public string QuestionTitle => $"Senaryo {_questionIndex + 1} / {SelectedTopic.Quiz.Count}";
-    public string QuizPrompt => SelectedTopic.Quiz[_questionIndex].Prompt;
+    public string QuestionTitle => $"Senaryo {_questionIndex + 1} / {CurrentQuestions.Count}";
+    public string QuizPrompt => CurrentQuestions[_questionIndex].Prompt;
     public IReadOnlyList<CmkLearningChoice> Choices =>
-        SelectedTopic.Quiz[_questionIndex].Choices
+        CurrentQuestions[_questionIndex].Choices
             .Select((text, index) => new CmkLearningChoice(index, text)).ToArray();
     public CmkLearningChoice? SelectedChoice
     {
@@ -159,7 +216,8 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
         private set { _feedback = value; Changed(); }
     }
     public string LearningProgress => $"{_answered.Count} / {CmkCurriculum.All.Sum(t => t.Quiz.Count)} senaryo yanıtlandı; " +
-        $"{_correct.Count} öğrenme yanıtı doğru. HUKUKÎ PASS / OTOMATİK KARAR YOK.";
+        $"İlk yanıtta doğru: {_correct.Count}; geri bildirimden sonra doğru: {_recovered.Count}. " +
+        "Tekrarlar ilk yanıt puanını artırmaz. HUKUKÎ PASS / OTOMATİK KARAR YOK.";
     public string SessionLabel =>
         "Tamamen çevrimdışı ve RAM'de. Konu değiştirseniz de o konunun kontrol işaretleri " +
         "oturum sonuna veya Sıfırla'ya kadar korunur. Hukukî PASS yoktur.";
@@ -181,6 +239,10 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
             ["cmk134"] = search
         };
         RebuildChecklist();
+        RebuildRecallCards();
+        SelectFlowCommand = new RelayCommand(SelectFlow);
+        NextFlowCommand = new RelayCommand(_ => SelectFlow(_flowOrder % Flow.Count + 1));
+        BranchCommand = new RelayCommand(SelectBranch);
         AnswerCommand = new RelayCommand(_ => Answer());
         NextQuestionCommand = new RelayCommand(_ => Next());
         ResetSessionCommand = new RelayCommand(_ => Reset());
@@ -193,7 +255,7 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
         // Rehydrate from independent, RAM-only per-topic marks; never disk.
         string topicKey = SelectedTopic.Key;
         var rows = new ObservableCollection<CmkLearningChecklistRow>(
-            SelectedTopic.Flow.Select(step => new CmkLearningChecklistRow(
+            Flow.Select(step => new CmkLearningChecklistRow(
                 step, _checklistSession.IsReviewed(topicKey, step.Order))));
         foreach (var row in rows)
             row.PropertyChanged += (_, e) =>
@@ -220,21 +282,24 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
             return;
         }
         string key = $"{SelectedTopic.Key}:{_questionIndex}";
-        if (_answered.Contains(key))
+        bool firstAttempt = !_answered.Contains(key);
+        if (!firstAttempt && Study is null)
         {
             Feedback = "Bu senaryo oturumda zaten yanıtlandı. Diğer senaryoya geçin veya oturumu sıfırlayın.";
             return;
         }
-        var result = CmkLearningCatalog.Assess(
-            SelectedTopic.Key, _questionIndex, SelectedChoice.Index);
+        var result = Study is null
+            ? CmkLearningCatalog.Assess(SelectedTopic.Key, _questionIndex, SelectedChoice.Index)
+            : CmkStudyCatalog.AssessQuiz(SelectedTopic.Key, _questionIndex, SelectedChoice.Index);
         _answered.Add(key);
-        if (result.Correct) _correct.Add(key);
-        Feedback = result.Feedback;
+        if (firstAttempt && result.Correct) _correct.Add(key);
+        if (!firstAttempt && result.Correct && !_correct.Contains(key)) _recovered.Add(key);
+        Feedback = result.Feedback + (!firstAttempt ? "\nBu bir tekrar denemesidir; ilk yanıt puanı değiştirilmedi." : "");
         Changed(nameof(LearningProgress));
     }
     private void Next()
     {
-        _questionIndex = (_questionIndex + 1) % SelectedTopic.Quiz.Count;
+        _questionIndex = (_questionIndex + 1) % CurrentQuestions.Count;
         SelectedChoice = null;
         Feedback = "Şema ve tabloya dönerek yeni senaryoyu cevaplayın. Kaynak NOT_VERIFIED.";
         NotifyQuizChanged();
@@ -246,6 +311,10 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
             MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         _answered.Clear();
         _correct.Clear();
+        _recovered.Clear();
+        _studySession.Reset();
+        RebuildRecallCards();
+        NotifyStudyChanged();
         // Reset every topic, not only the currently displayed checklist.
         _checklistSession.Reset();
         _questionIndex = 0;
