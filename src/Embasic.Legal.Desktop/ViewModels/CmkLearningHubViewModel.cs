@@ -62,6 +62,9 @@ public sealed class CmkLearningHubViewModel : ObservableViewModel
         ? new[] { CmkCurriculum.AlternativeCategory } : CmkCurriculum.Categories;
     public SystematicsPage? Procedure => _procedures.TryGetValue(SelectedTopic.Key, out var page) ? page : null;
     public bool HasProcedure => Procedure is not null;
+    // TUR032: must match the 0-based index of 'İşlem sistematiği' in App.xaml.
+    // TUR030 added the 'Tekrar' tab; former index 6 now opens 'Kaynak'.
+    public const int ProcedureTabIndex = 7;
     private int _selectedTabIndex;
     public int SelectedTabIndex
     {

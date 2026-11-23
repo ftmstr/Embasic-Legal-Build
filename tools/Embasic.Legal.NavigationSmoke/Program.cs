@@ -59,19 +59,21 @@ internal static class Program
             app.NavigateCommand.Execute("detention");
             var detention = hub.Procedure;
             Require(ReferenceEquals(app.CurrentPage, hub) && detention?.Workflow.Key == "detention"
-                && hub.SelectedTopic.Key == "cmk100-108" && hub.SelectedTabIndex == 6,
+                && hub.SelectedTopic.Key == "cmk100-108" && hub.SelectedTabIndex == 7 &&
+                hub.SelectedTabIndex == CmkLearningHubViewModel.ProcedureTabIndex,
                 "Detention tool is inside its canonical lesson");
             detention!.FileCode = "SYNTHETIC-SESSION";
             app.NavigateCommand.Execute("supervision");
             var supervision = hub.Procedure;
             Require(ReferenceEquals(app.CurrentPage, hub) && supervision?.Workflow.Key == "supervision"
-                && hub.SelectedTopic.Key == "cmk109-115", "Judicial control tool is inside its canonical lesson");
+                && hub.SelectedTopic.Key == "cmk109-115" && hub.SelectedTabIndex == 7,
+                "Judicial control tool opens the actual procedure tab, not legal source");
             app.NavigateCommand.Execute("detention");
             Require(ReferenceEquals(hub.Procedure, detention) && detention.FileCode == "SYNTHETIC-SESSION"
                 && app.HasPendingSystematicData, "Consolidation preserves procedure object and pending-data close guard");
             app.NavigateCommand.Execute("search");
             var search = hub.Procedure;
-            Require(ReferenceEquals(app.CurrentPage, hub) && search?.IsSearch == true,
+            Require(ReferenceEquals(app.CurrentPage, hub) && search?.IsSearch == true && hub.SelectedTabIndex == 7,
                 "Search and seizure tool is embedded in the centre");
             search!.SeizureEvidence = "SYNTHETIC-EVIDENCE";
             hub.OpenTopic("cmk134");
