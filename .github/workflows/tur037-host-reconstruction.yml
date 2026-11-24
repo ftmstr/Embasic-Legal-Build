@@ -1,0 +1,119 @@
+name: TUR037 exact HostWriter reconstruction (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur037-host-reconstruction.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  reconstruct:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.404'
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14896671662'
+          run-id: '45342165417'
+          github-token: ${{ github.token }}
+          path: original
+      - name: Reconstruct only host prefix from pinned template and original resources
+        shell: pwsh
+        run: |
+          @'
+          import pathlib, hashlib, json, struct, zipfile, urllib.request, subprocess, os
+          from urllib.parse import urlsplit
+          root=pathlib.Path("tur037-evidence"); root.mkdir(exist_ok=True)
+          work=pathlib.Path("tur037-work").resolve(); work.mkdir(exist_ok=True)
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def run(args):
+              p=subprocess.run(args,cwd=work,capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=240)
+              (root/"harness.log").write_text(p.stdout+"\n"+p.stderr,encoding="utf-8")
+              if p.returncode: raise RuntimeError("harness exit "+str(p.returncode))
+              return p.stdout.strip()
+          def u32(b,o): return struct.unpack_from("<I",b,o)[0]
+          def spans(a,b):
+              assert len(a)==len(b)
+              result=[]; start=None
+              for i,(x,y) in enumerate(zip(a,b)):
+                  if x!=y:
+                      if start is None: start=i
+                  elif start is not None:
+                      result.append([start,i]); start=None
+              if start is not None: result.append([start,len(a)])
+              return result
+          def pe(b):
+              o=u32(b,60); assert b[o:o+4]==b"PE\0\0"
+              n=struct.unpack_from("<H",b,o+6)[0]; t=o+24+struct.unpack_from("<H",b,o+20)[0]
+              sections={}
+              for i in range(n):
+                  q=t+40*i; name=b[q:q+8].rstrip(b"\0").decode()
+                  sections[name]=(u32(b,q+20),u32(b,q+16),u32(b,q+12))
+              return sections
+          result={"status":"NOT_VERIFIED","license_release":"NO-GO","production":"NO-GO","physical_uat":"NOT_RUN","official_law":"NOT_VERIFIED"}
+          try:
+              fs=list(pathlib.Path("original").rglob("Embasic.Legal.exe")); assert len(fs)==1
+              exe=fs[0].read_bytes(); assert sha(exe)=="262ac3abd82439e14add33807546bc3abbf15e5f9fb8fecae585d455f842be29"
+              prov=json.loads((fs[0].parent/"BUILD_PROVENANCE.json").read_text(encoding="utf-8-sig"))
+              assert prov["git_head_sha"]==prov["checkout_sha"]=="9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f"
+              prefix=exe[:10141696]; assert sha(prefix)=="24ab0434bc1f697c761a309d836f2d2246f654dc37d4d92e126b40f064fcf983"
+              app=exe[10141696:10141696+1434112]; assert sha(app)=="0c0cda279f14b00e0e76852a47a07d73edba9924ddd68085a2bfdabeb195eb4c"
+              (work/"Embasic.Legal.dll").write_bytes(app)
+              url="https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.host.win-x64/10.0.15/microsoft.netcore.app.host.win-x64.10.0.15.nupkg"
+              with urllib.request.urlopen(url,timeout=90) as resp:
+                  assert urlsplit(resp.url).scheme=="https" and urlsplit(resp.url).netloc=="api.nuget.org"
+                  raw=resp.read()
+              assert sha(raw)=="41d6989224d9e273880072041c0fa7a2d8c92f1cf11e989e8967d3d589a066ad"
+              import io
+              with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                  template=z.read("runtimes/win-x64/native/singlefilehost.exe")
+              assert sha(template)=="b6440f5591e0953ae1bacde1be537ee007e0d2c90de2aa462517cca9955690ec"
+              (work/"template.exe").write_bytes(template)
+              (work/"global.json").write_text('{"sdk":{"version":"10.0.404","rollForward":"disable"}}')
+              sdk=run(["dotnet","--version"]); assert sdk=="10.0.404"
+              sdkpath=pathlib.Path(os.environ["DOTNET_ROOT"])/"sdk"/sdk
+              model=sdkpath/"Microsoft.NET.HostModel.dll"
+              if not model.is_file():
+                  matches=list(sdkpath.rglob("Microsoft.NET.HostModel.dll"))
+                  assert matches; model=next((x for x in matches if "tools" in x.parts and "net10.0" in x.parts),matches[0])
+              result["inputs"]={"sdk":sdk,"hostmodel_path":str(model.relative_to(sdkpath)),"hostmodel_sha256":sha(model.read_bytes()),"template_sha256":sha(template),"resource_assembly_sha256":sha(app),"original_exe_sha256":sha(exe),"original_prefix_sha256":sha(prefix)}
+              (work/"Harness.csproj").write_text('<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings></PropertyGroup><ItemGroup><Reference Include="Microsoft.NET.HostModel"><HintPath>'+str(model)+'</HintPath></Reference></ItemGroup></Project>')
+              (work/"Program.cs").write_text('using Microsoft.NET.HostModel.AppHost; HostWriter.CreateAppHost("template.exe", "reconstructed.exe", "Embasic.Legal.dll", windowsGraphicalUserInterface: true, assemblyToCopyResourcesFrom: "Embasic.Legal.dll");')
+              run(["dotnet","run","--project","Harness.csproj","-c","Release"])
+              host=(work/"reconstructed.exe").read_bytes()
+              marker=hashlib.sha256(b".net core bundle").digest()
+              assert marker.hex()=="8b1202b96a612038727b930214d7a03213f5b9e6efae3318ee3b2dce24b36aae"
+              assert host.count(marker)==1 and prefix.count(marker)==1
+              mi=host.index(marker)-8; oi=prefix.index(marker)-8
+              assert mi>=0 and oi>=0 and host[mi:mi+8]==bytes(8)
+              header=struct.unpack_from("<Q",prefix,oi)[0]; assert header==144060744
+              patched=host[:mi]+struct.pack("<Q",header)+host[mi+8:]
+              aligned=patched+bytes((-len(patched))%4096)
+              result["transform"]={"hostwriter_bytes":len(host),"hostwriter_sha256":sha(host),"marker_offset":mi,"original_marker_offset":oi,"bundle_header_offset":header,"alignment":4096,"padding_bytes":len(aligned)-len(patched),"reconstructed_prefix_bytes":len(aligned),"reconstructed_prefix_sha256":sha(aligned),"exact_prefix_match":aligned==prefix}
+              if len(aligned)==len(prefix):
+                  diff=spans(aligned,prefix)
+                  result["remaining_differences"]={"byte_count":sum(y-x for x,y in diff),"span_count":len(diff),"first_100_spans":diff[:100]}
+              sections=pe(aligned); orig=pe(prefix)
+              result["changed_sections"]={}
+              for n in (".data",".rsrc"):
+                  a,s,r=sections[n]; b,t,q=orig[n]
+                  result["changed_sections"][n]={"reconstructed_size":s,"original_size":t,"reconstructed_rva":r,"original_rva":q,"byte_match":aligned[a:a+s]==prefix[b:b+t],"reconstructed_sha256":sha(aligned[a:a+s]),"original_sha256":sha(prefix[b:b+t])}
+              result["status"]="EXACT_PREFIX_RECONSTRUCTED" if aligned==prefix else "RECONSTRUCTION_PARTIAL"
+          except Exception as e:
+              result["error"]=repr(e); raise
+          finally:
+              (root/"result.json").write_text(json.dumps(result,indent=2),encoding="utf-8")
+              print("TUR037",json.dumps(result))
+          '@ | Set-Content -Encoding utf8 tur037.py
+          python tur037.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR037-Host-Reconstruction-NOT-RELEASE
+          path: tur037-evidence/
+          if-no-files-found: error
