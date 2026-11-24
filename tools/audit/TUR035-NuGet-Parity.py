@@ -16,13 +16,17 @@ def save(path,data):
     p=ROOT/path; p.parent.mkdir(parents=True,exist_ok=True); p.write_bytes(data)
     return {"path":str(path),"sha256":sha(data),"bytes":len(data)}
 baseline=pathlib.Path("tools/audit/TUR034-baseline.json").read_bytes()
+print("TUR035 baseline bytes",len(baseline),"sha256",sha(baseline))
 assert sha(baseline)=="fa7d0b4dc89c6265173cf88101bbd596110cdcb256a54cf4596347db9594f306"
 d=json.loads(baseline)
-exe=pathlib.Path("original/Embasic.Legal.exe").read_bytes()
+originals=list(pathlib.Path("original").rglob("Embasic.Legal.exe"))
+assert len(originals)==1, "ambiguous or absent original EXE"
+original=originals[0].parent
+exe=originals[0].read_bytes()
 assert sha(exe)==d["exe_sha256"]=="262ac3abd82439e14add33807546bc3abbf15e5f9fb8fecae585d455f842be29"
-prov=json.loads(pathlib.Path("original/BUILD_PROVENANCE.json").read_text(encoding="utf-8-sig"))
+prov=json.loads((original/"BUILD_PROVENANCE.json").read_text(encoding="utf-8-sig"))
 assert prov["git_head_sha"]==prov["checkout_sha"]==d["exact_head"]
-assert str(prov["run_id"] if "run_id" in prov else prov.get("github_run_id","45342165417"))=="45342165417"
+assert str(prov["run_id"] if "run_id" in prov else prov["github_run_id"])=="45342165417"
 rows=d["rows"]
 assert len(rows)==390 and len({r["path"] for r in rows})==390
 # Validate previously recorded member bytes; not a new bundle inventory.
