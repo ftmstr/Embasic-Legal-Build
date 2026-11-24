@@ -2,6 +2,7 @@ name: TUR035 NuGet original artifact audit (NOT release)
 on:
   push:
     branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['tools/audit/TUR035-NuGet-Parity.py', 'tools/audit/TUR034-baseline.json']
 permissions:
   contents: read
   actions: read

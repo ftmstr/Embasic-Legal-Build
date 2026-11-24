@@ -1,0 +1,29 @@
+name: TUR035 catalog-only evidence (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['tools/audit/TUR035-Catalog.py']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  catalog:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14934130303'
+          run-id: '45419340832'
+          github-token: ${{ github.token }}
+          path: prior
+      - name: Compare official catalog to existing archive evidence
+        shell: pwsh
+        run: python tools/audit/TUR035-Catalog.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR035-Catalog-Evidence-NOT-RELEASE
+          path: tur035-catalog-evidence/
+          if-no-files-found: error
