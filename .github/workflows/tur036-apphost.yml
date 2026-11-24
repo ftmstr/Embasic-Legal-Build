@@ -1,0 +1,114 @@
+name: TUR036 AppHost native prefix evidence (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur036-apphost.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  host:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14896671662'
+          run-id: '45342165417'
+          github-token: ${{ github.token }}
+          path: original
+      - name: Compare pinned original prefix with signed official Host pack
+        shell: pwsh
+        run: |
+          @'
+          import pathlib, hashlib, json, struct, zipfile, urllib.request, gzip, base64, subprocess, xml.etree.ElementTree as ET
+          from urllib.parse import urlsplit
+          root=pathlib.Path("tur036-evidence"); root.mkdir(exist_ok=True)
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def get(url):
+              assert urlsplit(url).scheme=="https" and urlsplit(url).netloc=="api.nuget.org"
+              with urllib.request.urlopen(url,timeout=90) as response:
+                  assert urlsplit(response.url).scheme=="https" and urlsplit(response.url).netloc=="api.nuget.org"
+                  return response.read()
+          def jget(url):
+              b=get(url)
+              if b.startswith(b"\x1f\x8b"): b=gzip.decompress(b)
+              return b,json.loads(b)
+          def u16(b,o): return struct.unpack_from("<H",b,o)[0]
+          def u32(b,o): return struct.unpack_from("<I",b,o)[0]
+          def pe(b):
+              assert b[:2]==b"MZ"
+              o=u32(b,60); assert b[o:o+4]==b"PE\0\0" and u16(b,o+4)==0x8664
+              n=u16(b,o+6); assert 0<n<=96
+              opt=o+24; assert u16(b,opt)==0x20b
+              t=opt+u16(b,o+20); assert t+40*n<=len(b)
+              sections={}
+              for i in range(n):
+                  q=t+40*i; name=b[q:q+8].rstrip(b"\0").decode("ascii")
+                  size=u32(b,q+16); off=u32(b,q+20)
+                  assert name not in sections and off+size<=len(b)
+                  sections[name]={"offset":off,"size":size,"rva":u32(b,q+12),"virtual_size":u32(b,q+8),"flags":u32(b,q+36),"sha256":sha(b[off:off+size])}
+              return {"machine":"AMD64","subsystem":u16(b,opt+68),"sections":sections}
+          result={"status":"NOT_VERIFIED","production":"NO-GO","license_release":"NO-GO","physical_uat":"NOT_RUN","official_law":"NOT_VERIFIED"}
+          try:
+              files=list(pathlib.Path("original").rglob("Embasic.Legal.exe")); assert len(files)==1
+              exe=files[0].read_bytes()
+              assert sha(exe)=="262ac3abd82439e14add33807546bc3abbf15e5f9fb8fecae585d455f842be29"
+              prov=json.loads((files[0].parent/"BUILD_PROVENANCE.json").read_text(encoding="utf-8-sig"))
+              assert prov["git_head_sha"]==prov["checkout_sha"]=="9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f"
+              prefix=exe[:10141696]; assert sha(prefix)=="24ab0434bc1f697c761a309d836f2d2246f654dc37d4d92e126b40f064fcf983"
+              result["original"]={"exe_sha256":sha(exe),"prefix_sha256":sha(prefix),"prefix_bytes":len(prefix),"pe":pe(prefix)}
+              id="microsoft.netcore.app.host.win-x64"; ver="10.0.15"; name=id+"."+ver
+              url=f"https://api.nuget.org/v3-flatcontainer/{id}/{ver}/{name}.nupkg"
+              raw=get(url); archive=pathlib.Path(name+".nupkg"); archive.write_bytes(raw)
+              regb,reg=jget(f"https://api.nuget.org/v3/registration5-gz-semver2/{id}/{ver}.json")
+              entry=reg["catalogEntry"]; caturl=entry if isinstance(entry,str) else entry["@id"]
+              catb,cat=jget(caturl)
+              assert cat["id"].lower()==id and cat["version"]==ver
+              raw512=base64.b64encode(hashlib.sha512(raw).digest()).decode()
+              assert cat["packageHashAlgorithm"].upper()=="SHA512" and cat["packageHash"]==raw512 and cat["packageSize"]==len(raw)
+              (root/"registration.json").write_bytes(regb); (root/"catalog.json").write_bytes(catb)
+              run=subprocess.run(["dotnet","nuget","verify",str(archive),"--all","--verbosity","detailed"],capture_output=True,timeout=180)
+              (root/"nuget-verify.txt").write_bytes(run.stdout+b"\n"+run.stderr)
+              result["package"]={"id":id,"version":ver,"url":url,"sha256":sha(raw),"sha512":raw512,"size":len(raw),"catalog_url":caturl,"catalog_match":True,"signature_exit":run.returncode}
+              assert run.returncode==0
+              with zipfile.ZipFile(archive) as z:
+                  assert z.testzip() is None and len(z.namelist())==len(set(z.namelist()))
+                  ns=[p for p in z.namelist() if p.lower().endswith(".nuspec")]; assert len(ns)==1
+                  meta=ET.fromstring(z.read(ns[0])).find("{*}metadata")
+                  assert meta.find("{*}id").text.lower()==id and meta.find("{*}version").text==ver
+                  candidates=[p for p in z.namelist() if p.lower().startswith("runtimes/win-x64/native/") and pathlib.PurePosixPath(p).name.lower() in ("apphost.exe","singlefilehost.exe")]
+                  assert candidates
+                  result["candidates"]=[]
+                  for p in candidates:
+                      b=z.read(p); upstream=pe(b); a=result["original"]["pe"]["sections"]; c=upstream["sections"]
+                      comparison={k:{"original":a.get(k),"upstream":c.get(k),"exact_raw_match":k in a and k in c and a[k]["size"]==c[k]["size"] and a[k]["sha256"]==c[k]["sha256"]} for k in sorted(set(a)|set(c))}
+                      code=[k for k,v in c.items() if v["flags"]&0x20000000]
+                      original_code=[k for k,v in a.items() if v["flags"]&0x20000000]
+                      code_match=bool(code) and set(code)==set(original_code) and all(comparison[k]["exact_raw_match"] and a[k]["rva"]==c[k]["rva"] for k in code)
+                      result["candidates"].append({"path":p,"bytes":len(b),"sha256":sha(b),"pe":upstream,"comparison":comparison,"executable_sections":code,"executable_sections_match":code_match,"full_prefix_match":b==prefix})
+                  for i,p in enumerate(z.namelist()):
+                      if pathlib.PurePosixPath(p).name.lower() in ("license","license.txt","third-party-notices.txt","notice.txt"):
+                          b=z.read(p); out=f"notice-{i}.txt"; (root/out).write_bytes(b)
+                          result.setdefault("license_documents",[]).append({"archive_path":p,"path":out,"bytes":len(b),"sha256":sha(b)})
+              result["status"]="HOST_EXECUTABLE_SECTIONS_MATCH_PARTIAL" if any(c["executable_sections_match"] for c in result["candidates"]) else "NO_EXACT_EXECUTABLE_SECTION_MATCH"
+              result["full_prefix_provenance"]="NOT_VERIFIED; PE resource, bundle marker, header and padding differences require separate explanation"
+          except Exception as exc:
+              result["error"]=repr(exc)
+              raise
+          finally:
+              (root/"result.json").write_text(json.dumps(result,indent=2),encoding="utf-8")
+              print("TUR036",result["status"],json.dumps([{"path":c["path"],"match":c["executable_sections_match"]} for c in result.get("candidates",[])]))
+          '@ | Set-Content -Encoding utf8 tur036-host.py
+          python tur036-host.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR036-AppHost-Evidence-NOT-RELEASE
+          path: tur036-evidence/
+          if-no-files-found: error
