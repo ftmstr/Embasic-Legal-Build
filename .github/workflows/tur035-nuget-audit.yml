@@ -1,0 +1,32 @@
+name: TUR035 NuGet original artifact audit (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14896671662'
+          run-id: '45342165417'
+          github-token: ${{ github.token }}
+          path: original
+      - name: Compare original exact EXE against official versioned archives
+        shell: pwsh
+        run: python tools/audit/TUR035-NuGet-Parity.py
+      - name: Upload evidence only, no EXE or nupkg
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TUR035-NuGet-Audit-NOT-RELEASE
+          path: tur035-evidence/
+          if-no-files-found: error
