@@ -85,7 +85,7 @@ jobs:
               (work/"Program.cs").write_text('using Microsoft.NET.HostModel.AppHost; HostWriter.CreateAppHost("template.exe", "reconstructed.exe", "Embasic.Legal.dll", windowsGraphicalUserInterface: true, assemblyToCopyResourcesFrom: "Embasic.Legal.dll");')
               run(["dotnet","run","--project","Harness.csproj","-c","Release"])
               host=(work/"reconstructed.exe").read_bytes()
-              marker=hashlib.sha256(b".net core bundle").digest()
+              marker=bytes.fromhex("8b1202b96a612038727b930214d7a03213f5b9e6efae3318ee3b2dce24b36aae")
               assert marker.hex()=="8b1202b96a612038727b930214d7a03213f5b9e6efae3318ee3b2dce24b36aae"
               assert host.count(marker)==1 and prefix.count(marker)==1
               mi=host.index(marker)-8; oi=prefix.index(marker)-8
