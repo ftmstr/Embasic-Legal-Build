@@ -1,0 +1,83 @@
+name: TUR038 exact source notices and targeted SDK provenance (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur038-notice-evidence.yml']
+permissions:
+  contents: read
+jobs:
+  notice-evidence:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect exact source documents and compare only D3D target
+        shell: pwsh
+        run: |
+          @'
+          import hashlib, json, pathlib, urllib.request, zipfile, io, os, subprocess
+          from urllib.parse import urlsplit
+          root=pathlib.Path("tur038-evidence"); root.mkdir(exist_ok=True)
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def blob(b): return hashlib.sha1(("blob "+str(len(b))+"\0").encode()+b).hexdigest()
+          def get(url, host):
+              with urllib.request.urlopen(url,timeout=90) as r:
+                  assert urlsplit(r.url).scheme=="https" and urlsplit(r.url).netloc==host
+                  return r.read()
+          docs=[
+              ("dotnet/wpf","v10.0.15","THIRD-PARTY-NOTICES.TXT","c2ce2452c1dd7ff03eb862e1d8cd8f6117cee05b","WPF-THIRD-PARTY-NOTICES.TXT"),
+              ("dotnet/runtime","v10.0.15","src/installer/pkg/LICENSE-MSFT.TXT","c69e3631ee3c942df5751003abd6f6b7051f09a2","DOTNET-LIBRARY-LICENSE-MSFT.TXT"),
+              ("dotnet/runtime","v10.0.15","src/installer/pkg/THIRD-PARTY-NOTICES.TXT","d4ec4333fbfc0f300d9b43e97726797e98a81899","DOTNET-INSTALLER-THIRD-PARTY-NOTICES.TXT"),
+              ("dotnet/efcore","v10.0.0","LICENSE.txt","a616ed188dfce68ee308f674350ad242d8588c2b","EFCORE-LICENSE.txt"),
+              ("ericsink/SQLitePCL.raw","v3.0.5","LICENSE.TXT","d645695673349e3947e8e5ae42332d0ac3164cd7","SQLITEPCLRAW-LICENSE.TXT"),
+              ("ericsink/SQLitePCL.raw","v3.0.5","NOTICE.TXT","d728ea62485dc1f4a73fe54bbd73d23aa680d283","SQLITEPCLRAW-NOTICE.TXT"),
+              ("dotnet/wpf","v10.0.15","src/Microsoft.DotNet.Wpf/redist/D3DCompiler/D3DCompiler.vcxproj","fedbcc144ed7564ebfceefdb27768f32ace700db","WPF-D3DCOMPILER-source.vcxproj"),
+              ("dotnet/wpf","v10.0.15","Documentation/redistributables.md","b90e9ce29b7500d3ebf83649cb552c0a6049b131","WPF-REDISTRIBUTABLES-source.md")]
+          result={"audit_only":True,"production":"NO-GO","license_release":"NO-GO","physical_uat":"NOT_RUN","official_law":"NOT_VERIFIED","baseline_product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","documents":[],"d3d":{"status":"NOT_VERIFIED","candidates":[]}}
+          try:
+              for repo,tag,path,expected,name in docs:
+                  url=f"https://raw.githubusercontent.com/{repo}/{tag}/{path}"
+                  b=get(url,"raw.githubusercontent.com")
+                  assert blob(b)==expected, (name,blob(b),expected)
+                  (root/name).write_bytes(b)
+                  result["documents"].append({"name":name,"url":url,"bytes":len(b),"sha256":sha(b),"git_blob_sha1":expected,"scope":"UPSTREAM_SOURCE_ONLY"})
+              result["source_document_status"]="8/8 EXACT_RAW_BLOBS"
+              try:
+                  url="https://api.nuget.org/v3-flatcontainer/microsoft.windowsdesktop.app.runtime.win-x64/10.0.15/microsoft.windowsdesktop.app.runtime.win-x64.10.0.15.nupkg"
+                  raw=get(url,"api.nuget.org")
+                  with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                      name="runtimes/win-x64/native/D3DCompiler_47_cor3.dll"
+                      names=[n for n in z.namelist() if n.lower()==name.lower()]
+                      assert len(names)==1
+                      b=z.read(names[0])
+                  expected="a05f99734f7c4822fefc12b367af21fd0976ed6608752fb1e1e80b6ece7ecbbb"
+                  assert sha(b)==expected
+                  work=pathlib.Path("tur038-work"); work.mkdir(exist_ok=True)
+                  target=work/"D3DCompiler_47_cor3.dll"; target.write_bytes(b)
+                  def version(p):
+                      env=os.environ.copy(); env["AUDIT_DLL"]=str(p.resolve())
+                      cmd="$v=[Diagnostics.FileVersionInfo]::GetVersionInfo($env:AUDIT_DLL); $s=Get-AuthenticodeSignature -LiteralPath $env:AUDIT_DLL; [ordered]@{file_version=$v.FileVersion; product_version=$v.ProductVersion; original_filename=$v.OriginalFilename; signature_status=[string]$s.Status; signer_thumbprint=$s.SignerCertificate.Thumbprint} | ConvertTo-Json -Compress"
+                      return json.loads(subprocess.check_output(["pwsh","-NoProfile","-Command",cmd],env=env,text=True,timeout=40))
+                  result["d3d"].update({"target_sha256":expected,"target_bytes":len(b),"target_version":version(target),"source":"pinned WPF runtime package; target hash from TUR034/035"})
+                  kits=pathlib.Path(os.environ["ProgramFiles(x86)"])/"Windows Kits"/"10"/"Redist"
+                  for p in sorted(kits.rglob("d3dcompiler_47.dll")):
+                      if p.parent.name.lower() not in ("x64","amd64"): continue
+                      c=p.read_bytes()
+                      result["d3d"]["candidates"].append({"path":str(p),"bytes":len(c),"sha256":sha(c),"byte_match":c==b,"version":version(p)})
+                  result["d3d"]["status"]="RUNNER_REDIST_BYTE_MATCH" if any(c["byte_match"] for c in result["d3d"]["candidates"]) else "NO_MATCH_IN_RUNNER_REDIST"
+              except Exception as e:
+                  result["d3d"]["error"]=repr(e)
+                  result["d3d"]["status"]="NOT_VERIFIED"
+          finally:
+              (root/"result.json").write_text(json.dumps(result,indent=2),encoding="utf-8")
+              print(json.dumps(result))
+          assert len(result["documents"])==8
+          '@ | Set-Content -Encoding utf8 tur038.py
+          python tur038.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR038-Source-Notice-Evidence-NOT-RELEASE
+          path: tur038-evidence/
+          if-no-files-found: error
