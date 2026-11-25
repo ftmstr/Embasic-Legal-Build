@@ -5,8 +5,8 @@ MAX_BYTES=32*1024*1024
 class Denied(Exception): pass
 class VerifiedSnapshot(sqlite3.Connection): pass
 # Independently verified artifact bytes, not metadata-only permission.
-G27_PINS={"TUR054":"643a3f1b65299dea8bc5d2edb56edc90138b643b0dddb323200e727c1236d2cc","TUR052":"2d5303313a2886918a5506ee516398b745cb42cb102a8d233c12f5cd0e822818","TUR053":"8cb48e72aaba7d25f902618c47edd26ef51e7a7d61182dc0610e8f98a0137b4c"}
-M49_PINS={"TUR054":"643a3f1b65299dea8bc5d2edb56edc90138b643b0dddb323200e727c1236d2cc"}
+G27_PINS={"TUR055":"91f7369ee251f7897719e4e4bb4cd80ff2af04ef85081294852fa78b60a77e2d","TUR054":"643a3f1b65299dea8bc5d2edb56edc90138b643b0dddb323200e727c1236d2cc","TUR052":"2d5303313a2886918a5506ee516398b745cb42cb102a8d233c12f5cd0e822818","TUR053":"8cb48e72aaba7d25f902618c47edd26ef51e7a7d61182dc0610e8f98a0137b4c"}
+M49_PINS={"TUR055":"91f7369ee251f7897719e4e4bb4cd80ff2af04ef85081294852fa78b60a77e2d","TUR054":"643a3f1b65299dea8bc5d2edb56edc90138b643b0dddb323200e727c1236d2cc"}
 def snapshot(path, expected):
     if not re.fullmatch(r"[0-9a-f]{64}",expected): raise Denied("INVALID_EXPECTED_HASH")
     with pathlib.Path(path).open("rb") as f:
