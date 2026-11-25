@@ -140,7 +140,7 @@ jobs:
           legacy=db.execute("SELECT id,article_id,label,page,ordinal FROM node WHERE article_id LIKE '1632:%' AND kind='subclause' AND parent NOT LIKE '%/b:%' ORDER BY page,ordinal").fetchall()
           ck(len(legacy)==55,"legacy marker count")
           for old,aid,label,p,o in legacy:
-              t=anchor(1632,p,o)[1]
+              t=db.execute("SELECT body FROM membership WHERE article_id=? AND page=? AND ordinal=?",(aid,p,o)).fetchone()[0]
               ck(re.match(r"^"+re.escape(label)+r"\.\s+",t) is not None,("legacy marker",old,t))
               new=aid+"/legacy-p@"+str(p)+":"+str(o)
               overlay(1632,p,o,old,new,aid,"legacy_paragraph_candidate","unscoped decimal marker; legal number/hierarchy still review")
