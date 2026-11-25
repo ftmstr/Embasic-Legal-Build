@@ -56,7 +56,7 @@ jobs:
           checks=[]
           def test(n,c):ck(c,n);checks.append({"case":n,"pass":True})
           def norm(s):return " ".join(unicodedata.normalize("NFC",s).split())
-          def trlower(s):return unicodedata.normalize("NFC",s).replace("I\u0307","İ").translate(str.maketrans({"I":"ı","İ":"i"})).lower()
+          def trlower(s):return unicodedata.normalize("NFC",s).replace("I\u0307","İ").translate(str.maketrans({"I":"ı","İ":"i"})).lower().replace("i\u0307","i")
           def canon_kind(s):
               k=trlower(s)
               ck(k in ("normal","ek","geçici","mükerrer"),"unrecognized kind")
