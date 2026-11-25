@@ -21,6 +21,7 @@ jobs:
           import concurrent.futures, datetime as dt, hashlib, html.parser, json, pathlib, re, sqlite3, subprocess, urllib.request, urllib.parse
           ROOT=pathlib.Path("tur044-evidence"); ROOT.mkdir()
           RAW=ROOT/"raw"; RAW.mkdir()
+          DERIVED=ROOT/"derived"; DERIVED.mkdir()
           URLS=json.loads(r'''[["u01","https://mevzuat.adalet.gov.tr/mevzuat/103228/",5237],["u02","https://mevzuat.adalet.gov.tr/mevzuat/102946/",5271],["u03","https://mevzuat.adalet.gov.tr/mevzuat/112987/",null],["u04","https://mevzuat.adalet.gov.tr/mevzuat/103106/",null],["u05","https://mevzuat.adalet.gov.tr/mevzuat/103126?query=6136",6136],["u06","https://mevzuat.adalet.gov.tr/mevzuat/102918/",2918],["u07","https://mevzuat.adalet.gov.tr/mevzuat/104573/",2559],["u08","https://mevzuat.adalet.gov.tr/mevzuat/103320/",null],["u09","https://mevzuat.adalet.gov.tr/mevzuat/103904?query=%C3%87ocuk%20Koruma%20Kanunu",5395],["u10","https://mevzuat.adalet.gov.tr/mevzuat/103643?query=2863",2863],["u11","https://mevzuat.adalet.gov.tr/mevzuat/102944?query=5275",5275],["u12","https://mevzuat.adalet.gov.tr/mevzuat/103798",null],["u13","https://mevzuat.adalet.gov.tr/mevzuat/102981/",null],["u14","https://www.mevzuat.gov.tr/mevzuat?MevzuatNo=6114&MevzuatTur=1&MevzuatTertip=5",6114],["u15","https://www.mevzuat.gov.tr/MevzuatMetin/1.3.1632.pdf",1632],["m5237","https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5237.pdf",5237],["m5271","https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5271.pdf",5271],["a5237","https://alternatifcozumler.adalet.gov.tr/Resimler/Mevzuat/TCK%205237.pdf",5237],["a5271","https://alternatifcozumler.adalet.gov.tr/Resimler/Mevzuat/CMK%205271.pdf",5271],["tb7571","https://cdn.tbmm.gov.tr/KKBSPublicFile/D28/Y3/KanunMetni/5189159c-4dec-44bf-87e0-9b23a810c791.htm",7571],["rg7571","https://www.resmigazete.gov.tr/eskiler/2025/12/20251225-33.htm",7571],["aym149","https://normkararlarbilgibankasi.anayasa.gov.tr/Dosyalar/Kararlar/KararPDF/2025-149-nrm.pdf",null],["aym107","https://normkararlarbilgibankasi.anayasa.gov.tr/Dosyalar/Kararlar/KararPDF/2023-107-nrm.pdf",null]]''')
           HOSTS={urllib.parse.urlsplit(x[1]).hostname for x in URLS}
           MAX=16*1024*1024
@@ -43,7 +44,7 @@ jobs:
                   if tag in ("p","div","tr","li"): self.parts.append("\n")
               def handle_data(self,data):
                   if not self.hidden: self.parts.append(data)
-          ARTICLE=re.compile(r"(?im)^[ \t]*(?:(Ek|Geçici|Mükerrer)\s+)?Madde\s+(\d+(?:\s*/\s*[A-ZÇĞİÖŞÜ]+)?)\s*[-–—]")
+          ARTICLE=re.compile(r"(?im)(?:^|(?<=\f))[ \t]*(?:(Ek|Geçici|Mükerrer)\s+)?Madde\s+(\d+(?:\s*/\s*[A-ZÇĞİÖŞÜ]+)?)\s*[-–—]")
           def structure(text):
               # candidate boundaries only; footnotes, cross-page continuations and amendment tables require review.
               out=[]
@@ -74,6 +75,7 @@ jobs:
                       rec["status"]="UNRECOGNIZED_FORMAT"; return rec,[]
                   rec["raw_file"]="raw/"+raw.name
                   text=text.replace("\u00a0"," ")
+                  (DERIVED/(key+".txt")).write_text(text,encoding="utf-8")
                   heads=structure(text)
                   rec["text_sha256"]=sha(text.encode("utf-8")); rec["text_chars"]=len(text); rec["article_candidates"]=len(heads)
                   rec["observed_number"]=None
