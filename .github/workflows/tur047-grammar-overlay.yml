@@ -168,7 +168,10 @@ jobs:
               def handle_data(self,d):
                   if not self.hidden:self.parts.append(d)
           def text(b):
-              parser=Text();parser.feed(b.decode("utf-8-sig",errors="strict"));return norm("".join(parser.parts))
+              m=re.search(rb"charset\s*=\s*[\x22\x27]?([A-Za-z0-9_-]+)",b[:8192],re.I)
+              enc=m[1].decode("ascii").lower() if m else "utf-8-sig"
+              ck(enc in ("windows-1254","cp1254","utf-8","utf-8-sig","iso-8859-9"),"unsupported charset "+enc)
+              parser=Text();parser.feed(b.decode(enc,errors="strict"));return norm("".join(parser.parts))
           def allowed(u):
               p=urllib.parse.urlsplit(u);return p.scheme=="https" and p.hostname=="cdn.tbmm.gov.tr" and not p.username and not p.password and p.port in (None,443)
           class Redirect(urllib.request.HTTPRedirectHandler):
