@@ -1,0 +1,109 @@
+name: TUR052 KTK temporary provision boundary (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur052-ktk.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15058496001'
+          run-id: '45689770047'
+          github-token: ${{ github.token }}
+          path: prior51
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: prior47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Verify exact temporary provision boundary
+        shell: bash
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          cat > tur052.py <<'PY'
+          import pathlib,sqlite3,hashlib,json,shutil,subprocess,unicodedata,sys
+          sys.path.insert(0,str(pathlib.Path("tools").resolve()))
+          import audit_candidate_reader as reader
+          R=pathlib.Path("tur052-evidence");R.mkdir()
+          def sha(b):return hashlib.sha256(b).hexdigest()
+          def ck(v,m):
+              if not v:raise RuntimeError(m)
+          def pin(p,h):
+              b=p.read_bytes();ck(sha(b)==h,str(p));return b
+          def root(n):return next(pathlib.Path(n).rglob("result.json")).parent
+          a,b,c=root("prior51"),root("prior47"),root("prior45")
+          pin(a/"result.json","96413898f91c65c8db36334577686e096d58e3ba1639151d6d16a3212fc7c17e")
+          base=a/"reader-candidate.sqlite";pin(base,"6e8d9b2b12295cb5ebfeca98d3bf6921955a2d6e123b2567cd183b96b7fb5ab5")
+          review=pin(a/"review-only.json","fe586ceb946df3ecabf7000029f14f704cbbc78ff16904e0bc88c33a4278e747")
+          prior_boundary=json.loads(pin(a/"boundary-review.json","10fec1779a0b7d23e525992160f6963bacee8ba86e62378bff8e56e13c5a3bbe"))
+          (R/"review-only.json").write_bytes(review)
+          src=b/"grammar-candidate.sqlite";pin(src,"3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e")
+          pdf=c/"new-raw/2918.pdf";pdfhash="44a3394f7b3e5ad7495d26d862086afc699f7013fadc996be686dc3bee4fd8ce";pin(pdf,pdfhash)
+          s=sqlite3.connect(src.resolve().as_uri()+"?mode=ro",uri=True);s.row_factory=sqlite3.Row;s.execute("PRAGMA query_only=ON")
+          def norm(t):return " ".join(unicodedata.normalize("NFC",t).split())
+          def page(p):return norm(subprocess.check_output(["pdftotext","-f",str(p),"-l",str(p),"-layout",str(pdf),"-"],timeout=30).decode("utf-8"))
+          def line(p,o):return dict(s.execute("SELECT * FROM line WHERE law=2918 AND page=? AND ordinal=?",(p,o)).fetchone())
+          checks=[]
+          def test(n,v):ck(v,n);checks.append({"case":n,"pass":True})
+          aid="2918:geçici:27";rs=[dict(x) for x in s.execute("SELECT m.*,l.raw,l.bbox,l.classification FROM membership m JOIN line l USING(law,page,ordinal) WHERE article_id=? ORDER BY m.page,m.ordinal",(aid,))]
+          coords=[(98,o) for o in range(12,37)]+[(99,0),(99,1)]
+          test("exact_prior_27_memberships",[(x["page"],x["ordinal"]) for x in rs]==coords and [list((aid,2918,x["page"],x["ordinal"],x["body"])) for x in rs]==prior_boundary["removed_reader_rows"])
+          good=rs[:22];extra=rs[22:25];headings=rs[25:]
+          p98,p99=page(98),page(99)
+          start=good[0]["raw"];end=extra[0]["raw"]
+          test("independent_complete_g27_pdf_block",p98.count(start)==1 and p98.count(end)==1 and p98.index(start)<p98.index(end) and norm(p98[p98.index(start):p98.index(end)])==norm(" ".join(x["raw"] for x in good)))
+          test("only_article_header_removed",start=="Geçici Madde 27- (Ek:12/2/2026-7574/34 md.)" and good[0]["body"]=="(Ek:12/2/2026-7574/34 md.)" and all(x["body"]==x["raw"] for x in good[1:]))
+          test("unnumbered_provision_separate_exact_suffix",end=="Ek Geçici Madde – (Ek: 27/8/1991 – 3759/2 md.)" and p98.endswith(norm(" ".join(x["raw"] for x in extra))))
+          test("chapter_headings_separate_exact_prefix",p99.startswith(norm(" ".join(x["raw"] for x in headings)+" "+line(99,2)["raw"])) and [x["raw"] for x in headings]==["ONÜÇÜNCÜ KISIM","Kaldırılan Hükümler, Yürürlük ve Yürütme"])
+          dst=R/"reader-candidate.sqlite";shutil.copyfile(base,dst)
+          d=sqlite3.connect(dst);d.execute("PRAGMA foreign_keys=ON");d.execute("ATTACH DATABASE ? AS old",(base.resolve().as_uri()+"?mode=ro",))
+          ck(d.execute("SELECT status FROM article_index WHERE id=?",(aid,)).fetchone()==("WITHHELD_REVIEW",),"prior hold")
+          d.execute("UPDATE article_index SET status='CANDIDATE_UNVERIFIED',reason='SOURCE_BOUNDARY_REVIEW_ONLY' WHERE id=?",(aid,))
+          added=[(aid,2918,x["page"],x["ordinal"],x["body"]) for x in good]
+          d.executemany("INSERT INTO reader_line VALUES(?,?,?,?,?)",added)
+          d.execute("UPDATE metadata SET value='TUR052' WHERE key='projection_revision'")
+          test("only_target_status_change",all(d.execute(q).fetchall()==[(aid,)] for q in ("SELECT id FROM (SELECT * FROM article_index EXCEPT SELECT * FROM old.article_index)","SELECT id FROM (SELECT * FROM old.article_index EXCEPT SELECT * FROM article_index)")))
+          test("exact_22_added_no_old_removed",set(d.execute("SELECT * FROM reader_line EXCEPT SELECT * FROM old.reader_line").fetchall())==set(added) and not d.execute("SELECT * FROM old.reader_line EXCEPT SELECT * FROM reader_line").fetchall())
+          test("five_excluded_rows_and_38_prior_zones",all(not d.execute("SELECT 1 FROM reader_line WHERE law=2918 AND page=? AND ordinal=?",(x["page"],x["ordinal"])).fetchall() for x in extra+headings) and all(not d.execute("SELECT 1 FROM reader_line WHERE law=? AND page=? AND ordinal=?",(l,p,o)).fetchall() for l,p,o in s.execute("SELECT m.law,m.page,m.ordinal FROM membership m JOIN source_zone z USING(law,page,ordinal)")) and s.execute("SELECT count(*) FROM membership m JOIN source_zone z USING(law,page,ordinal)").fetchone()[0]==38)
+          test("35_remaining_held_no_leak",d.execute("SELECT count(*) FROM article_index WHERE status='WITHHELD_REVIEW'").fetchone()[0]==35 and not d.execute("SELECT * FROM reader_line WHERE article_id IN (SELECT id FROM article_index WHERE status='WITHHELD_REVIEW')").fetchall())
+          rv=json.loads(review)
+          test("review_and_temporal_annotations_exact",len(rv["overlay_review"])==119 and len(rv["list_review"])==19 and sum(len(x["members"]) for x in rv["list_review"])==90 and all(not d.execute(f"SELECT * FROM {t} EXCEPT SELECT * FROM old.{t}").fetchall() and not d.execute(f"SELECT * FROM old.{t} EXCEPT SELECT * FROM {t}").fetchall() for t in ("temporal_decision","reader_annotation")) and d.execute("SELECT count(*) FROM temporal_decision").fetchone()[0]==11 and all(not json.loads(x[0])["automatic_effect"] for x in d.execute("SELECT record FROM temporal_decision")))
+          d.commit()
+          test("integrity",d.execute("PRAGMA integrity_check").fetchone()==("ok",) and not d.execute("PRAGMA foreign_key_check").fetchall())
+          counts={t:d.execute("SELECT count(*) FROM "+t).fetchone()[0] for t in ("article_index","reader_line","reader_annotation","temporal_decision")}
+          d.close();s.close()
+          digest=sha(dst.read_bytes());db=reader.snapshot(dst,digest)
+          test("generic_reader_exact_22",reader.read_article(db,aid)["body"]==[{"page":x[2],"ordinal":x[3],"text":x[4]} for x in added]);db.close()
+          db=reader.snapshot(base,sha(base.read_bytes()))
+          try:reader.read_article(db,aid);blocked=False
+          except reader.Denied as e:blocked=str(e)=="REVISION_ARTICLE_QUARANTINED"
+          db.close();test("generic_prior51_quarantined",blocked)
+          def anchor(x):return {"page":x["page"],"ordinal":x["ordinal"],"raw":x["raw"],"bbox":json.loads(x["bbox"]),"raw_sha256":sha(x["raw"].encode())}
+          (R/"boundary-review.json").write_text(json.dumps({"pdf_sha256":pdfhash,"g27":[anchor(x) for x in good],"unnumbered_provision":{"legal_id":None,"status":"REVIEW_REQUIRED","coordinates":[anchor(x) for x in extra]},"chapter_headings":{"legal_id":None,"status":"SOURCE_STRUCTURE_ONLY","coordinates":[anchor(x) for x in headings]}},ensure_ascii=False,indent=2),encoding="utf-8")
+          out={"status":"TUR052_BOUNDARY_CANDIDATE_ONLY","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","promotion_allowed":False,"official_legal_source":"NOT_VERIFIED","production":"NO-GO","physical_uat":"NOT_RUN","counts":counts,"candidate_articles":1473,"withheld_articles":35,"reader_sha256":digest,"review_sha256":sha(review),"pdf_sha256":pdfhash,"checks":checks,"opened":aid,"limitations":["selected boundary only","generic caller hash and metadata not independent authority","unnumbered provision retained as separate review record","no product integration"]}
+          (R/"result.json").write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8")
+          print("TUR052_RESULT",json.dumps(out,ensure_ascii=False))
+          PY
+          python3 tur052.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR052-KTK-Temporary-Evidence-NOT-RELEASE
+          path: tur052-evidence/
+          if-no-files-found: error
