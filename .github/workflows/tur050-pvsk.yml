@@ -1,0 +1,116 @@
+name: TUR050 PVSK source-boundary candidate audit (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur050-pvsk.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  pvsk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15057816038'
+          run-id: '45687953803'
+          github-token: ${{ github.token }}
+          path: prior49
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: prior47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Compare full PDF blocks and reopen selected candidate articles
+        shell: bash
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          cat > tur050.py <<'PY'
+          import pathlib,sqlite3,hashlib,json,shutil,subprocess,re,unicodedata,sys
+          sys.path.insert(0,str(pathlib.Path("tools").resolve()))
+          import audit_candidate_reader as reader
+          R=pathlib.Path("tur050-evidence");R.mkdir()
+          def sha(b):return hashlib.sha256(b).hexdigest()
+          def ck(v,m):
+              if not v:raise RuntimeError(m)
+          def pin(p,h):
+              b=p.read_bytes();ck(sha(b)==h,str(p));return b
+          def root(n):return next(pathlib.Path(n).rglob("result.json")).parent
+          a,b,c=root("prior49"),root("prior47"),root("prior45")
+          pin(a/"result.json","fe5ab8d298244246023d47bc9cfb80a7f735cda3b01768138d13a650658f7cbe")
+          base=a/"reader-candidate.sqlite";pin(base,"8cf36bf2937f7c73020d9bd6975ec9a2d75b84d0d45d42fe99a0582758f18919")
+          review=pin(a/"review-only.json","fe586ceb946df3ecabf7000029f14f704cbbc78ff16904e0bc88c33a4278e747")
+          (R/"review-only.json").write_bytes(review);rv=json.loads(review)
+          src=b/"grammar-candidate.sqlite";pin(src,"3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e")
+          pdf=c/"new-raw/2559.pdf";pdfhash="75629a2c3d6f0012574cf483a1731678396ad0918da63e983da1434b35b79c19";pin(pdf,pdfhash)
+          s=sqlite3.connect(src.resolve().as_uri()+"?mode=ro",uri=True);s.row_factory=sqlite3.Row
+          s.execute("PRAGMA query_only=ON")
+          def norm(t):return " ".join(unicodedata.normalize("NFC",t).split())
+          def line(p,o):
+              x=s.execute("SELECT * FROM line WHERE law=2559 AND page=? AND ordinal=?",(p,o)).fetchone();ck(x is not None,(p,o));return dict(x)
+          checks=[]
+          def test(n,c):ck(c,n);checks.append({"case":n,"pass":True})
+          dst=R/"reader-candidate.sqlite";shutil.copyfile(base,dst)
+          d=sqlite3.connect(dst);d.execute("PRAGMA foreign_keys=ON");d.execute("ATTACH DATABASE ? AS old",(base.resolve().as_uri()+"?mode=ro",))
+          targetids=["2559:normal:9","2559:normal:16"];added=[];annotations=[];source_review=[]
+          note=norm(" ".join(line(11,o)["raw"] for o in (36,37)))
+          test("note13_exact_superscript_and_separate_note",any(x["text"].strip()=="13" and x["flags"]&1 and x["size"]<=9 for x in json.loads(line(11,8)["spans"])) and line(11,8)["raw"]==line(11,8)["body"]+"13" and all(line(11,o)["classification"]=="FOOTNOTE_CANDIDATE" for o in (36,37)) and "6638" in note)
+          for n,p1,p2,coords,titlecoord,title,groups in [
+          (9,7,8,[(7,o) for o in range(12,38)]+[(8,o) for o in range(12)],(7,11),"Önleme araması",[(7,20,"abcç"),(7,26,"abcçde")]),
+          (16,10,12,[(10,o) for o in range(31,34)]+[(11,o) for o in range(36)]+[(12,o) for o in range(6)],(10,30),"Zor ve silah kullanma",[(11,3,"ab"),(11,20,"abcd")])]:
+              aid=f"2559:normal:{n}"
+              rs=[dict(x) for x in s.execute("SELECT m.*,l.raw,l.classification,l.bbox FROM membership m JOIN line l USING(law,page,ordinal) WHERE article_id=? ORDER BY m.page,m.ordinal",(aid,))]
+              test(f"m{n}_exact_contiguous_body_coordinates",[(x["page"],x["ordinal"]) for x in rs]==coords and all(x["classification"] in ("ARTICLE_HEADER","BODY_CANDIDATE") for x in rs) and not s.execute("SELECT 1 FROM membership m JOIN source_zone z USING(law,page,ordinal) WHERE m.article_id=?",(aid,)).fetchall())
+              text=norm(subprocess.check_output(["pdftotext","-f",str(p1),"-l",str(p2),"-layout",str(pdf),"-"],timeout=30).decode("utf-8"))
+              h=re.search(r"Madde "+str(n)+r"\s*[-–]",text);e=re.search(r"Madde "+str(n+1)+r"\s*[-–]",text[h.end():])
+              block=text[h.start():h.end()+e.start()].strip()
+              if n==16:
+                  ck(block.count(note)==1,"unique note");block=block.replace(note,"")
+              test(f"m{n}_full_raw_pdf_block_match",norm(block)==norm(" ".join(x["raw"] for x in rs)))
+              test(f"m{n}_body_only_removes_header_and_confirmed_superscript",all(x["body"]==x["raw"] or ((x["page"],x["ordinal"])==coords[0] and re.sub(r"^Madde\s+"+str(n)+r"\s*[-–]\s*","",x["raw"])==x["body"]) or (n==16 and (x["page"],x["ordinal"])==(11,8) and x["raw"]==x["body"]+"13") for x in rs))
+              g=[x for x in rv["list_review"] if x["article"]==aid]
+              test(f"m{n}_two_distinct_list_groups",[(x["lead_page"],x["lead_ordinal"],"".join(y["literal_label"] for y in x["members"])) for x in g]==groups and all(x["legal_paragraph_number"] is None for x in g))
+              ck(d.execute("SELECT status FROM article_index WHERE id=?",(aid,)).fetchone()==("WITHHELD_REVIEW",),aid)
+              d.execute("UPDATE article_index SET status='CANDIDATE_UNVERIFIED',reason='SOURCE_BOUNDARY_REVIEW_ONLY' WHERE id=?",(aid,))
+              for x in rs:
+                  row=(aid,2559,x["page"],x["ordinal"],x["body"]);d.execute("INSERT INTO reader_line VALUES(?,?,?,?,?)",row);added.append(row)
+              p,o=titlecoord;x=line(p,o);ck(x["raw"]==title and x["classification"]=="HEADING_CANDIDATE",title)
+              for k,p,o in [("TITLE",p,o)]+([("FOOTNOTE",11,36),("FOOTNOTE",11,37)] if n==16 else []):
+                  x=line(p,o);h=sha(x["raw"].encode());d.execute("INSERT INTO reader_annotation VALUES(?,?,?,?,?,?)",(aid,k,p,o,x["raw"],h))
+                  annotations.append({"article_id":aid,"kind":k,"page":p,"ordinal":o,"source_text_sha256":h,"bbox":json.loads(x["bbox"])})
+              source_review.append({"article":aid,"body_coordinates":coords,"pdf_block_sha256":sha(norm(block).encode()),"list_groups":g,"legal_acceptance":False})
+          d.execute("INSERT INTO metadata VALUES('projection_revision','TUR050')")
+          test("only_two_article_status_changes",set(x[0] for x in d.execute("SELECT id FROM (SELECT * FROM article_index EXCEPT SELECT * FROM old.article_index)"))==set(targetids) and set(x[0] for x in d.execute("SELECT id FROM (SELECT * FROM old.article_index EXCEPT SELECT * FROM article_index)"))==set(targetids))
+          test("exact_83_new_lines_no_old_removal",len(added)==83 and set(d.execute("SELECT * FROM reader_line EXCEPT SELECT * FROM old.reader_line").fetchall())==set(added) and not d.execute("SELECT * FROM old.reader_line EXCEPT SELECT * FROM reader_line").fetchall())
+          test("remaining_36_held_no_body",d.execute("SELECT count(*) FROM article_index WHERE status='WITHHELD_REVIEW'").fetchone()[0]==36 and not d.execute("SELECT * FROM reader_line WHERE article_id IN (SELECT id FROM article_index WHERE status='WITHHELD_REVIEW')").fetchall())
+          test("annotations_separate_and_old_preserved",len(annotations)==4 and not d.execute("SELECT * FROM old.reader_annotation EXCEPT SELECT * FROM reader_annotation").fetchall() and not d.execute("SELECT * FROM reader_line r JOIN reader_annotation a ON r.article_id=a.article_id AND r.page=a.page AND r.ordinal=a.ordinal").fetchall())
+          test("temporal_and_review_exact",not d.execute("SELECT * FROM temporal_decision EXCEPT SELECT * FROM old.temporal_decision").fetchall() and not d.execute("SELECT * FROM old.temporal_decision EXCEPT SELECT * FROM temporal_decision").fetchall() and d.execute("SELECT count(*) FROM temporal_decision").fetchone()[0]==11 and all(not json.loads(x[0])["automatic_effect"] for x in d.execute("SELECT record FROM temporal_decision")) and sha((R/"review-only.json").read_bytes())==sha(review))
+          d.commit();test("new_database_integrity",d.execute("PRAGMA integrity_check").fetchone()==("ok",) and not d.execute("PRAGMA foreign_key_check").fetchall())
+          counts={t:d.execute("SELECT count(*) FROM "+t).fetchone()[0] for t in ("article_index","reader_line","reader_annotation","temporal_decision")}
+          d.close();s.close()
+          digest=sha(dst.read_bytes())
+          db=reader.snapshot(dst,digest)
+          test("existing_reader_compatible_with_new_projection",len(reader.read_article(db,targetids[0])["body"])==38 and len(reader.read_article(db,targetids[1])["body"])==45 and len(reader.read_article(db,targetids[1])["annotations"])==3)
+          db.close()
+          out={"status":"TUR050_BOUNDARY_CANDIDATE_ONLY","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","promotion_allowed":False,"official_legal_source":"NOT_VERIFIED","production":"NO-GO","physical_uat":"NOT_RUN","counts":counts,"candidate_articles":1472,"withheld_articles":36,"reader_sha256":digest,"pdf_sha256":pdfhash,"review_sha256":sha(review),"checks":checks,"source_review":source_review,"annotations":annotations,"limitations":["PVSK two candidate source boundaries only, not full legal acceptance","no invented paragraph number","prior reader revision retained for API compatibility"]}
+          (R/"result.json").write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8")
+          print("TUR050_RESULT",json.dumps(out,ensure_ascii=False))
+          PY
+          python3 tur050.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR050-PVSK-Evidence-NOT-RELEASE
+          path: tur050-evidence/
+          if-no-files-found: error
