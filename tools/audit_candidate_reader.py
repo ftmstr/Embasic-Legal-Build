@@ -23,6 +23,10 @@ def snapshot(path, expected):
         db.close()
         raise
 def read_article(db,aid):
+    # Known historical boundary defect: deny by default until a reviewed revision.
+    if aid=="2918:geçici:27":
+        rev=db.execute("SELECT value FROM metadata WHERE key='projection_revision'").fetchone()
+        if rev!=("TUR052",): raise Denied("REVISION_ARTICLE_QUARANTINED")
     row=db.execute("SELECT law,kind,number,status,reason FROM article_index WHERE id=?",(aid,)).fetchone()
     if row is None: raise Denied("UNKNOWN_ARTICLE")
     law,kind,no,status,reason=row
