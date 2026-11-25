@@ -1,0 +1,246 @@
+name: TUR047 grammar overlay and temporal source evidence (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur047-grammar-overlay.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  grammar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024268366'
+          run-id: '45620903977'
+          github-token: ${{ github.token }}
+          path: prior46
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Source-anchored grammar overlay and new law captures
+        shell: bash
+        run: |
+          cat > tur047.py <<'PY'
+          import pathlib,sqlite3,hashlib,json,re,unicodedata,shutil,urllib.request,urllib.parse,html.parser,datetime,collections
+          ROOT=pathlib.Path("tur047-evidence");ROOT.mkdir()
+          A=next(pathlib.Path("prior46").rglob("result.json")).parent
+          B=next(pathlib.Path("prior45").rglob("result.json")).parent
+          def sha(b):return hashlib.sha256(b).hexdigest()
+          def ck(c,m):
+              if not c:raise RuntimeError(m)
+          ck(sha((A/"result.json").read_bytes())=="d73ea149be0ff742f12f028b6ddb63fb8da19c6abe0dd9345c4a8b1ec4c839d7","prior result")
+          ck(sha((A/"coordinate-candidate.sqlite").read_bytes())=="49003bd437f20375aac6689ec56c60d3a7c611b72aaecf95e696dd001f65a423","prior db")
+          ck(sha((B/"result.json").read_bytes())=="439c807c3647e566d484bfb80de7c6817238dd6f7b88b795c29a8366ebdd6a08","prior45 result")
+          p45=json.loads((B/"result.json").read_text())
+          sources={x["id"]:x for x in p45["new_sources"]}
+          shutil.copyfile(A/"coordinate-candidate.sqlite",ROOT/"grammar-candidate.sqlite")
+          db=sqlite3.connect(ROOT/"grammar-candidate.sqlite")
+          db.execute("PRAGMA foreign_keys=ON")
+          db.executescript("""
+          CREATE TABLE grammar_group(id TEXT PRIMARY KEY,article_id TEXT REFERENCES article(id),law INTEGER,page INTEGER,ordinal INTEGER,kind TEXT,reason TEXT,FOREIGN KEY(law,page,ordinal) REFERENCES line(law,page,ordinal));
+          CREATE TABLE grammar_overlay(law INTEGER,page INTEGER,ordinal INTEGER,old_id TEXT,new_id TEXT UNIQUE,parent_id TEXT,kind TEXT,status TEXT,reason TEXT,PRIMARY KEY(law,page,ordinal),FOREIGN KEY(law,page,ordinal) REFERENCES line(law,page,ordinal));
+          CREATE TABLE conflict_disposition(law INTEGER,page INTEGER,ordinal INTEGER,old_id TEXT,proposed_id TEXT,category TEXT,PRIMARY KEY(law,page,ordinal),FOREIGN KEY(law,page,ordinal) REFERENCES grammar_overlay(law,page,ordinal));
+          CREATE TABLE source_zone(law INTEGER,page INTEGER,ordinal INTEGER,zone TEXT,PRIMARY KEY(law,page,ordinal),FOREIGN KEY(law,page,ordinal) REFERENCES line(law,page,ordinal));
+          CREATE TABLE temporal_source(id TEXT PRIMARY KEY,record TEXT);
+          CREATE TABLE temporal_relation_v2(id TEXT PRIMARY KEY,record TEXT);
+          """)
+          checks=[]
+          def test(n,c):ck(c,n);checks.append({"case":n,"pass":True})
+          def norm(s):return " ".join(unicodedata.normalize("NFC",s).split())
+          def trlower(s):return unicodedata.normalize("NFC",s).replace("I\u0307","İ").translate(str.maketrans({"I":"ı","İ":"i"})).lower()
+          def canon_kind(s):
+              k=trlower(s)
+              ck(k in ("normal","ek","geçici","mükerrer"),"unrecognized kind")
+              return k
+          def anchor(l,p,o):
+              x=db.execute("SELECT raw,body,classification FROM line WHERE law=? AND page=? AND ordinal=?",(l,p,o)).fetchone()
+              ck(x is not None,("missing anchor",l,p,o));return x
+          def group(l,aid,p,o,marker):
+              t=anchor(l,p,o)[1];ck(marker in t,("group marker",l,p,o))
+              gid=f"{aid}/u@{p}:{o}"
+              db.execute("INSERT INTO grammar_group VALUES(?,?,?,?,?,?,?)",(gid,aid,l,p,o,"UNNUMBERED_PARAGRAPH_CANDIDATE","source-anchored lead-in; not an assigned legal paragraph number"))
+              return gid
+          def overlay(l,p,o,old,new,parent,kind,reason):
+              anchor(l,p,o)
+              db.execute("INSERT INTO grammar_overlay VALUES(?,?,?,?,?,?,?,?,?)",(l,p,o,old,new,parent,kind,"REVIEW_REQUIRED",reason))
+          def disposition(l,p,o,old,new,category):
+              db.execute("INSERT INTO conflict_disposition VALUES(?,?,?,?,?,?)",(l,p,o,old,new,category))
+          # Precisely reviewed lead-ins, including distinct repeated lists on p45.
+          groups=[
+          (2559,"2559:normal:9",7,26,"Önleme araması",[(7,27),(7,29),(7,31),(7,32)]),
+          (2559,"2559:normal:16",11,20,"Polis;",[(11,21),(11,22)]),
+          (2918,"2918:normal:4",8,5,"verilen görevler",[(8,6),(8,7)]),
+          (2918,"2918:normal:31",28,8,"Bu maddenin;",[(28,i) for i in (9,10,12,13)]),
+          (2918,"2918:normal:46",38,24,"Bu maddenin;",[(38,i) for i in (25,27,28,29,30,31)]),
+          (2918,"2918:normal:47",39,33,"üçüncü fıkra",[(39,36),(40,0),(40,1),(40,2)]),
+          (2918,"2918:normal:51",44,35,"ikinci fıkrasının (a) bendinin",[(45,0),(45,1)]),
+          (2918,"2918:normal:51",45,4,"ikinci fıkrasının (b) bendinin",[(45,5),(45,6),(45,7)]),
+          (2918,"2918:normal:65",54,28,"üçüncü fıkra",[(54,i) for i in range(30,35)]),
+          (2918,"2918:ek:2",87,23,"İşleteni veya sahibi",[(87,26),(87,27),(87,28)])]
+          conf={(l,p,o):(i,r) for l,p,o,i,r in db.execute("SELECT * FROM conflict")}
+          ck(len(conf)==45,"prior conflict count")
+          for l,aid,p,o,marker,coords in groups:
+              parent=group(l,aid,p,o,marker)
+              # Map all same-list members, including the previously non-conflicting c on p45.
+              if l==2918 and aid=="2918:normal:51" and p==44:coords=coords+[(45,2)]
+              for pp,oo in coords:
+                  label=re.match(r"^([a-zçğıöşü])\)",anchor(l,pp,oo)[1])
+                  ck(label is not None,("letter",l,pp,oo))
+                  old=conf.get((l,pp,oo),(aid+"/b:"+label[1],None))[0]
+                  ck(old==aid+"/b:"+label[1],("unexpected prior",old))
+                  new=parent+"/b:"+label[1]
+                  overlay(l,pp,oo,old,new,parent,"clause_candidate","distinct source lead-in; retain repeated text")
+                  if (l,pp,oo) in conf:disposition(l,pp,oo,old,new,"UNNUMBERED_PARENT_CANDIDATE")
+          # 2863 m3: both named definition groups and all numeric items reparented.
+          aid="2863:normal:3"; l=2863
+          for p,o,label in [(1,22,"a"),(3,28,"b")]:
+              ck(anchor(l,p,o)[1].startswith(label+")"),"2863 group")
+              gid=f"{aid}/b:{label}"
+              # Store a group anchor independently of old parser's incorrect parent.
+              db.execute("INSERT INTO grammar_group VALUES(?,?,?,?,?,?,?)",(gid,aid,l,p,o,"DEFINITION_GROUP_CANDIDATE","explicit lettered group"))
+              old=db.execute("SELECT id FROM node WHERE article_id=? AND page=? AND ordinal=?",(aid,p,o)).fetchone()[0]
+              overlay(l,p,o,old,gid,aid,"clause_candidate","explicit definition group")
+              rows=db.execute("SELECT page,ordinal,body FROM membership WHERE article_id=? ORDER BY page,ordinal",(aid,)).fetchall()
+              for pp,oo,t in rows:
+                  if (pp,oo)<=(p,o) or (label=="a" and (pp,oo)>=(3,28)):continue
+                  m=re.match(r"^\((\d+)\)",t)
+                  if not m:continue
+                  old=conf.get((l,pp,oo),(aid+"/p:"+m[1],None))[0]
+                  new=gid+"/s:"+m[1]
+                  overlay(l,pp,oo,old,new,gid,"subclause_candidate","parenthesized number within explicit lettered definition group")
+                  if (l,pp,oo) in conf:disposition(l,pp,oo,old,new,"DEFINITION_SUBCLAUSE_CANDIDATE")
+          # Separate 2918 annex from page 99 split heading onwards. Preserve ALL physical source lines.
+          ck("2918 SAYILI ANA KANUNA" in anchor(2918,99,16)[1] and anchor(2918,99,17)[1]=="İŞLENEMEYEN HÜKÜMLER","split annex heading")
+          annex=[]
+          for p,o,t in db.execute("SELECT page,ordinal,body FROM line WHERE law=2918 AND (page>99 OR (page=99 AND ordinal>=16)) ORDER BY page,ordinal"):
+              db.execute("INSERT INTO source_zone VALUES(?,?,?,?)",(2918,p,o,"ANNEX_OR_AMENDMENT_TABLE_REVIEW"))
+              if (2918,p,o) in conf:
+                  old=conf[(2918,p,o)][0];ck(old.startswith("2918:geçici:"),"annex prior id")
+                  new=f"2918:annex@{p}:{o}"
+                  overlay(2918,p,o,old,new,None,"annex_article_candidate","outside main-law boundary; historical source attribution still review")
+                  disposition(2918,p,o,old,new,"ANNEX_NOT_MAIN_LAW")
+                  annex.append(new)
+          # 6114 schedule is not m21/1; preserve adjacent repeal note too.
+          ck(anchor(6114,14,4)[1]=="(1) SAYILI CETVEL","schedule title")
+          for o in (4,5):db.execute("INSERT INTO source_zone VALUES(?,?,?,?)",(6114,14,o,"SCHEDULE_REVIEW"))
+          old=conf[(6114,14,4)][0]
+          overlay(6114,14,4,old,"6114:schedule:1",None,"schedule_candidate","not a numbered paragraph")
+          disposition(6114,14,4,old,"6114:schedule:1","SCHEDULE_NOT_PARAGRAPH")
+          # 1632 legacy decimal marks without an established clause: propose paragraphs,
+          # keep source identity and mark uncertain, never delete old node.
+          legacy=db.execute("SELECT id,article_id,label,page,ordinal FROM node WHERE article_id LIKE '1632:%' AND kind='subclause' AND parent NOT LIKE '%/b:%' ORDER BY page,ordinal").fetchall()
+          ck(len(legacy)==55,"legacy marker count")
+          for old,aid,label,p,o in legacy:
+              t=anchor(1632,p,o)[1]
+              ck(re.match(r"^"+re.escape(label)+r"\.\s+",t) is not None,("legacy marker",old,t))
+              new=aid+"/legacy-p@"+str(p)+":"+str(o)
+              overlay(1632,p,o,old,new,aid,"legacy_paragraph_candidate","unscoped decimal marker; legal number/hierarchy still review")
+          # Data preservation and exact target coverage, not legal validation.
+          test("all_45_prior_conflicts_have_distinct_disposition",db.execute("SELECT count(*) FROM conflict_disposition").fetchone()[0]==45 and not db.execute("SELECT law,page,ordinal FROM conflict EXCEPT SELECT law,page,ordinal FROM conflict_disposition").fetchall())
+          test("35_repeat_clauses_have_source_anchored_parents",db.execute("SELECT count(*) FROM conflict_disposition WHERE category='UNNUMBERED_PARENT_CANDIDATE'").fetchone()[0]==35)
+          test("2863_two_definition_groups_all_19_numeric_items",db.execute("SELECT count(*) FROM grammar_overlay WHERE law=2863 AND kind='subclause_candidate'").fetchone()[0]==19)
+          test("six_annex_conflicts_outside_main_scope",len(annex)==6)
+          test("schedule_not_paragraph",db.execute("SELECT count(*) FROM conflict_disposition WHERE category='SCHEDULE_NOT_PARAGRAPH'").fetchone()[0]==1)
+          test("legacy_55_candidates_with_coordinates",len(legacy)==55)
+          test("distinct_51_repeated_text_preserved",anchor(2918,45,0)[0]==anchor(2918,45,5)[0] and db.execute("SELECT count(DISTINCT parent_id) FROM grammar_overlay WHERE law=2918 AND page=45 AND ordinal IN (0,5)").fetchone()[0]==2)
+          test("turkish_identity_normalization",canon_kind("GEÇİCİ")==canon_kind("geçi\u0307ci\u0307")==canon_kind("Geçici")=="geçici" and canon_kind("MÜKERRER")=="mükerrer" and trlower("I")=="ı" and trlower("İ")=="i")
+          # The inherited base records are immutable. Overlay consumers must exclude source_zone
+          # and superseded positions; no automatic promotion or new product corpus is produced.
+          test("base_counts_preserved",all(db.execute("SELECT count(*) FROM "+t).fetchone()[0]==n for t,n in [("article",1508),("node",4479),("line",23940),("conflict",45)]))
+          # New law HTML sources only, with exact HTTPS host allowlist, raw bytes and hash.
+          class Text(html.parser.HTMLParser):
+              def __init__(self):super().__init__(convert_charrefs=True);self.parts=[];self.hidden=0
+              def handle_starttag(self,t,a):
+                  if t in ("script","style"):self.hidden+=1
+                  if t in ("p","div","br","tr","td","h1","h2"):self.parts.append("\n")
+              def handle_endtag(self,t):
+                  if t in ("script","style"):self.hidden=max(0,self.hidden-1)
+                  if t in ("p","div","tr","td"):self.parts.append("\n")
+              def handle_data(self,d):
+                  if not self.hidden:self.parts.append(d)
+          def text(b):
+              parser=Text();parser.feed(b.decode("utf-8-sig",errors="strict"));return norm("".join(parser.parts))
+          def allowed(u):
+              p=urllib.parse.urlsplit(u);return p.scheme=="https" and p.hostname=="cdn.tbmm.gov.tr" and not p.username and not p.password and p.port in (None,443)
+          class Redirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):
+                  ck(allowed(newurl),"redirect denied");return super().redirect_request(req,fp,code,msg,headers,newurl)
+          newsrc=[]
+          for no,url in [
+          (7499,"https://cdn.tbmm.gov.tr/KKBSPublicFile/D28/Y2/KanunMetni/48c107c3-a4dc-468e-bcf2-f7c8c24af1b0.htm"),
+          (7593,"https://cdn.tbmm.gov.tr/KKBSPublicFile/D28/Y4/KanunMetni/37b9adf5-a098-49ab-9ba2-62d9c6c12925.htm")]:
+              rec={"id":str(no),"url":url,"status":"NOT_VERIFIED"}
+              try:
+                  ck(allowed(url),"url")
+                  with urllib.request.build_opener(Redirect()).open(urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0","Accept-Encoding":"identity"}),timeout=20) as f:
+                      ck(allowed(f.url),"final host");b=f.read(2*1024*1024+1);ck(0<len(b)<=2*1024*1024,"size")
+                      rec.update(http=f.status,final_url=f.url,bytes=len(b),sha256=sha(b),retrieved_utc=datetime.datetime.now(datetime.timezone.utc).isoformat())
+                  (ROOT/f"tb{no}.html").write_bytes(b);t=text(b)
+                  (ROOT/f"tb{no}.txt").write_text(t,encoding="utf-8")
+                  ck(re.search(r"Kanun No\.?\s*"+str(no)+r"\b",t,re.I) is not None,"law header")
+                  rec.update(status="HEADER_MATCH",text_sha256=sha(t.encode()))
+              except Exception as e:rec["error"]=str(e)[:300]
+              newsrc.append(rec)
+              db.execute("INSERT INTO temporal_source VALUES(?,?)",(str(no),json.dumps(rec,ensure_ascii=False)))
+          # Existing 7589 and AYM originals are never fetched again.
+          for k in ("tb7589","rg2023decision","rg2025decision"):
+              p=B/"new-raw"/(k+(".html" if k=="tb7589" else ".pdf"))
+              ck(sha(p.read_bytes())==sources[k]["sha256"],k)
+              db.execute("INSERT INTO temporal_source VALUES(?,?)",(k,json.dumps({"id":k,"sha256":sources[k]["sha256"],"status":"PINNED_PRIOR","url":sources[k]["url"]},ensure_ascii=False)))
+          # Link exact source blocks, explicit temporal distinctions and scoped content.
+          relations=[]
+          def block(t,n,end):
+              m=re.search(r"(?<!\w)MADDE\s+"+str(n)+r"\s*[-–]",t)
+              ck(m is not None,("block start",n))
+              e=re.search(r"(?<!\w)MADDE\s+"+str(end)+r"\s*[-–]",t[m.end():])
+              ck(e is not None,("block end",end))
+              return t[m.start():m.end()+e.start()].strip()
+          def relation(id,src,target,amendment,effective,markers,blocktext):
+              rec={"id":id,"source":src,"target":target,"amendment":amendment,"effective_date_candidate":effective,"markers":{m:m in blocktext for m in markers},"block_sha256":sha(blocktext.encode()),"automatic_effect":False,"status":"REVIEW_REQUIRED"}
+              relations.append(rec)
+          try:
+              t=(ROOT/"tb7499.txt").read_text()
+              if newsrc[0]["status"]=="HEADER_MATCH":
+                  relation("7499-15","7499","CMK 231/5-14","15","2024-03-12",["231 inci","beş ilâ ondördüncü"],block(t,15,16))
+                  relation("7499-22","7499","CMK Geçici 6/2","22","2024-06-01 application threshold",["231 inci","1/6/2024","itiraz"],block(t,22,23))
+                  relation("7499-40","7499","effective date clause","40","publication except enumerated",["Diğer hükümleri yayımı tarihinde","1/6/2024"],block(t,40,41))
+          except Exception as e:relations.append({"id":"7499-block-error","error":str(e),"automatic_effect":False})
+          try:
+              t=(ROOT/"tb7593.txt").read_text()
+              if newsrc[1]["status"]=="HEADER_MATCH":
+                  relation("7593-15","7593","CMK 253/1-c","15/2","2026-08-18",["253 üncü","suça sürüklenen","adli süreçteki"],block(t,15,16))
+                  relation("7593-16","7593","effective date clause","16","publication except specified 43/C","Diğer hükümleri yayımı tarihinde|1/12/2026".split("|"),block(t,16,17))
+          except Exception as e:relations.append({"id":"7593-block-error","error":str(e),"automatic_effect":False})
+          t=text((B/"new-raw/tb7589.html").read_bytes())
+          relation("7589-15","tb7589","CMK 231","15","2026-07-31 candidate",["231 inci"],block(t,15,16))
+          relation("7589-16","tb7589","CMK 247/3","16","2026-07-31 candidate",["247 nci"],block(t,16,17))
+          for k,case,pub,delay,target in [("rg2023decision","2023/107","2023-08-01","1 year","pre-7499 CMK 231/5-14"),("rg2025decision","2025/149","2025-12-31","9 months","7499-version CMK 231/5-14 and CMK 247/3")]:
+              relations.append({"id":case,"source":k,"target":target,"publication":pub,"delay":delay,"status":"PRIOR_VISUAL_ANCHOR_REVIEW_REQUIRED","automatic_effect":False})
+          # Scope 7593 source text to the actual pinned line plus separate footnote evidence.
+          relations.append({"id":"7593-consolidated","source":"7593","target":"CMK 253/1-c","body_marker":any("adli süreçteki" in anchor(5271,101,o)[1] for o in (21,22,23)),"footnote_marker":"7593" in anchor(5271,101,41)[0],"coordinates":[[101,21],[101,22],[101,23],[101,41]],"automatic_effect":False,"status":"REVIEW_REQUIRED"})
+          for rec in relations:db.execute("INSERT INTO temporal_relation_v2 VALUES(?,?)",(rec["id"],json.dumps(rec,ensure_ascii=False)))
+          db.commit()
+          test("sqlite_integrity_and_foreign_keys",db.execute("PRAGMA integrity_check").fetchone()[0]=="ok" and not db.execute("PRAGMA foreign_key_check").fetchall())
+          counts={t:db.execute("SELECT count(*) FROM "+t).fetchone()[0] for t in ("grammar_group","grammar_overlay","conflict_disposition","source_zone","temporal_source","temporal_relation_v2")}
+          cats=dict(db.execute("SELECT category,count(*) FROM conflict_disposition GROUP BY category"))
+          db.close()
+          out={"status":"GRAMMAR_OVERLAY_REVIEW_REQUIRED","promotion_allowed":False,"official_legal_source":"NOT_VERIFIED","production":"NO-GO","physical_uat":"NOT_RUN","license_release":"NO-GO","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","counts":counts,"categories":cats,"checks":checks,"new_sources":newsrc,"relations":relations,"unknown_uyap":["112987","103106","103320","103798","102981"],"limitations":["45 source-anchored disposition candidates, not 45 approved legal repairs","55 legacy candidates not certified","base source tables retained; overlay is not a replacement corpus","no automatic promotion or effective-date decision"]}
+          (ROOT/"result.json").write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8")
+          print("TUR047_RESULT",json.dumps(out,ensure_ascii=False))
+          PY
+          python3 tur047.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR047-Grammar-Evidence-NOT-RELEASE
+          path: tur047-evidence/
+          if-no-files-found: error
