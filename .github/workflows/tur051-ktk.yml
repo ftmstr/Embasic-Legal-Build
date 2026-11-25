@@ -1,0 +1,121 @@
+name: TUR051 KTK annex boundary audit (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur051-ktk.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15056664563'
+          run-id: '45688754638'
+          github-token: ${{ github.token }}
+          path: prior50
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: prior47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Verify exact boundaries and quarantine new leakage
+        shell: bash
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          cat > tur051.py <<'PY'
+          import pathlib,sqlite3,hashlib,json,shutil,subprocess,re,unicodedata,sys
+          sys.path.insert(0,str(pathlib.Path("tools").resolve()))
+          import audit_candidate_reader as reader
+          R=pathlib.Path("tur051-evidence");R.mkdir()
+          def sha(b):return hashlib.sha256(b).hexdigest()
+          def ck(v,m):
+              if not v:raise RuntimeError(m)
+          def pin(p,h):
+              b=p.read_bytes();ck(sha(b)==h,str(p));return b
+          def root(n):return next(pathlib.Path(n).rglob("result.json")).parent
+          a,b,c=root("prior50"),root("prior47"),root("prior45")
+          pin(a/"result.json","ec3520c0edc0f74d1ee2baa1e76a67b279d3ab3a66bec6904a9ad3f32012f939")
+          base=a/"reader-candidate.sqlite";pin(base,"a884a9e4b26977c75b1baec3dddefde4ade3426719d3f9b0e44c82d2c87eb1a9")
+          review=pin(a/"review-only.json","fe586ceb946df3ecabf7000029f14f704cbbc78ff16904e0bc88c33a4278e747")
+          (R/"review-only.json").write_bytes(review)
+          src=b/"grammar-candidate.sqlite";pin(src,"3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e")
+          pdf=c/"new-raw/2918.pdf";pdfhash="44a3394f7b3e5ad7495d26d862086afc699f7013fadc996be686dc3bee4fd8ce";pin(pdf,pdfhash)
+          s=sqlite3.connect(src.resolve().as_uri()+"?mode=ro",uri=True);s.row_factory=sqlite3.Row;s.execute("PRAGMA query_only=ON")
+          def norm(t):return " ".join(unicodedata.normalize("NFC",t).split())
+          def line(p,o):return dict(s.execute("SELECT * FROM line WHERE law=2918 AND page=? AND ordinal=?",(p,o)).fetchone())
+          def page(p):return norm(subprocess.check_output(["pdftotext","-f",str(p),"-l",str(p),"-layout",str(pdf),"-"],timeout=30).decode("utf-8"))
+          checks=[]
+          def test(n,v):ck(v,n);checks.append({"case":n,"pass":True})
+          aid="2918:normal:138";hold="2918:geçici:27"
+          members=[dict(x) for x in s.execute("SELECT m.*,l.raw,l.bbox FROM membership m JOIN line l USING(law,page,ordinal) WHERE article_id=? ORDER BY m.page,m.ordinal",(aid,))]
+          zone=[(x["page"],x["ordinal"]) for x in s.execute("SELECT m.page,m.ordinal FROM membership m JOIN source_zone z USING(law,page,ordinal) WHERE m.article_id=? ORDER BY m.page,m.ordinal",(aid,))]
+          expected_zone=[(99,o) for o in range(16,33)]+[(100,o) for o in range(19)]
+          test("m138_exact_37_memberships_36_external",len(members)==37 and zone==expected_zone and [(x["page"],x["ordinal"]) for x in members]==[(99,15)]+zone)
+          text99=page(99);text100=page(100)
+          title="18/10/1983 TARİHLİ VE 2918 SAYILI ANA KANUNA İŞLENEMEYEN HÜKÜMLER"
+          raw="Madde 138 – Bu Kanun hükümlerini Bakanlar Kurulu yürütür."
+          body="Bu Kanun hükümlerini Bakanlar Kurulu yürütür."
+          test("m138_full_pdf_body_between_title_and_annex",text99.count(raw)==1 and text99.count(title)==1 and text99.split("Yürütme:")[-1].split(title)[0].strip()==raw and members[0]["raw"]==raw and members[0]["body"]==body)
+          test("external_36_rows_exact_pdf_sequence",norm(" ".join(x["raw"] for x in members[1:])) in norm(text99[text99.index(title):]+" "+text100))
+          p98=page(98);extra=[line(98,o) for o in range(34,37)]
+          test("new_unnumbered_provision_exact_pdf_suffix",extra[0]["raw"]=="Ek Geçici Madde – (Ek: 27/8/1991 – 3759/2 md.)" and p98.endswith(norm(" ".join(x["raw"] for x in extra))) and "tekerrür hesaplamalarında dikkate alınmaz. "+extra[0]["raw"] in p98)
+          test("new_leak_linked_to_wrong_article",s.execute("SELECT count(*) FROM membership WHERE article_id=? AND page=98 AND ordinal BETWEEN 34 AND 36",(hold,)).fetchone()[0]==3)
+          dst=R/"reader-candidate.sqlite";shutil.copyfile(base,dst)
+          d=sqlite3.connect(dst);d.execute("PRAGMA foreign_keys=ON");d.execute("ATTACH DATABASE ? AS old",(base.resolve().as_uri()+"?mode=ro",))
+          ck(d.execute("SELECT status FROM article_index WHERE id=?",(aid,)).fetchone()==("WITHHELD_REVIEW",),"m138 prior")
+          ck(d.execute("SELECT status FROM article_index WHERE id=?",(hold,)).fetchone()==("CANDIDATE_UNVERIFIED",),"g27 prior")
+          removed=d.execute("SELECT * FROM reader_line WHERE article_id=? ORDER BY page,ordinal",(hold,)).fetchall()
+          test("g27_preexisting_body_contains_new_leak",len(removed)==27 and [x[3] for x in removed[-3:]]==[34,35,36])
+          d.execute("UPDATE article_index SET status='CANDIDATE_UNVERIFIED',reason='SOURCE_BOUNDARY_REVIEW_ONLY' WHERE id=?",(aid,))
+          d.execute("UPDATE article_index SET status='WITHHELD_REVIEW',reason='NEW_UNNUMBERED_PROVISION_BOUNDARY_REVIEW' WHERE id=?",(hold,))
+          d.execute("DELETE FROM reader_line WHERE article_id=?",(hold,))
+          added=(aid,2918,99,15,body);d.execute("INSERT INTO reader_line VALUES(?,?,?,?,?)",added)
+          annotations=[]
+          for id,o,t in [("2918:normal:136",2,"Yürürlükten kaldırılan hükümler:"),("2918:normal:137",5,"Yürürlüğe girme:"),(aid,14,"Yürütme:")]:
+              x=line(99,o);ck(x["classification"]=="HEADING_CANDIDATE" and x["raw"]==t and t in text99,"title")
+              ck(d.execute("SELECT header_page,header_ordinal FROM article_index WHERE id=?",(id,)).fetchone()==(99,o+1),"heading adjacency")
+              h=sha(t.encode());d.execute("INSERT INTO reader_annotation VALUES(?,?,?,?,?,?)",(id,"TITLE",99,o,t,h))
+              annotations.append({"article_id":id,"page":99,"ordinal":o,"raw":t,"source_text_sha256":h,"bbox":json.loads(x["bbox"])})
+          d.execute("UPDATE metadata SET value='TUR051' WHERE key='projection_revision'")
+          test("only_m138_and_new_hold_status_change",set(x[0] for x in d.execute("SELECT id FROM (SELECT * FROM article_index EXCEPT SELECT * FROM old.article_index)"))=={aid,hold} and set(x[0] for x in d.execute("SELECT id FROM (SELECT * FROM old.article_index EXCEPT SELECT * FROM article_index)"))=={aid,hold})
+          test("only_one_body_added_and_exact_27_quarantined",d.execute("SELECT * FROM reader_line EXCEPT SELECT * FROM old.reader_line").fetchall()==[added] and set(d.execute("SELECT * FROM old.reader_line EXCEPT SELECT * FROM reader_line").fetchall())==set(removed))
+          test("all_38_known_zone_memberships_still_excluded",all(not d.execute("SELECT 1 FROM reader_line WHERE law=? AND page=? AND ordinal=?",(l,p,o)).fetchall() for l,p,o in s.execute("SELECT m.law,m.page,m.ordinal FROM membership m JOIN source_zone z USING(law,page,ordinal)")) and s.execute("SELECT count(*) FROM membership m JOIN source_zone z USING(law,page,ordinal)").fetchone()[0]==38)
+          test("all_36_held_including_new_hold_no_body",d.execute("SELECT count(*) FROM article_index WHERE status='WITHHELD_REVIEW'").fetchone()[0]==36 and not d.execute("SELECT * FROM reader_line WHERE article_id IN (SELECT id FROM article_index WHERE status='WITHHELD_REVIEW')").fetchall())
+          test("three_titles_separate_old_annotations_preserved",len(annotations)==3 and not d.execute("SELECT * FROM old.reader_annotation EXCEPT SELECT * FROM reader_annotation").fetchall() and not d.execute("SELECT 1 FROM reader_line r JOIN reader_annotation a ON r.article_id=a.article_id AND r.page=a.page AND r.ordinal=a.ordinal").fetchall())
+          rv=json.loads(review)
+          test("review_temporal_exact",len(rv["overlay_review"])==119 and len(rv["list_review"])==19 and sum(len(x["members"]) for x in rv["list_review"])==90 and not d.execute("SELECT * FROM temporal_decision EXCEPT SELECT * FROM old.temporal_decision").fetchall() and not d.execute("SELECT * FROM old.temporal_decision EXCEPT SELECT * FROM temporal_decision").fetchall() and all(not json.loads(x[0])["automatic_effect"] for x in d.execute("SELECT record FROM temporal_decision")))
+          d.commit()
+          test("integrity",d.execute("PRAGMA integrity_check").fetchone()==("ok",) and not d.execute("PRAGMA foreign_key_check").fetchall())
+          counts={t:d.execute("SELECT count(*) FROM "+t).fetchone()[0] for t in ("article_index","reader_line","reader_annotation","temporal_decision")}
+          d.close();s.close();digest=sha(dst.read_bytes())
+          db=reader.snapshot(dst,digest)
+          test("generic_reader_m138_one_line_and_title",reader.read_article(db,aid)["body"]==[{"page":99,"ordinal":15,"text":body}] and reader.read_article(db,aid)["annotations"][0]["text"]=="Yürütme:")
+          try:reader.read_article(db,hold);denied=False
+          except reader.Denied as e:denied=str(e)=="WITHHELD_REVIEW"
+          test("generic_reader_new_hold_denied",denied);db.close()
+          (R/"boundary-review.json").write_text(json.dumps({"pdf_sha256":pdfhash,"m138_source_coordinates":[[99,15]],"excluded_external_coordinates":zone,"new_unnumbered_provision":{"source_coordinates":[[98,o] for o in range(34,37)],"raw":[x["raw"] for x in extra],"legal_id":None,"status":"REVIEW_REQUIRED"},"new_hold":hold,"removed_reader_rows":removed,"annotations":annotations},ensure_ascii=False,indent=2),encoding="utf-8")
+          out={"status":"TUR051_BOUNDARY_CANDIDATE_ONLY","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","promotion_allowed":False,"official_legal_source":"NOT_VERIFIED","production":"NO-GO","physical_uat":"NOT_RUN","counts":counts,"candidate_articles":1472,"withheld_articles":36,"reader_sha256":digest,"review_sha256":sha(review),"pdf_sha256":pdfhash,"checks":checks,"new_hold":hold,"opened":aid,"limitations":["selected source boundary only","new hold includes entire prior body","unnumbered provision no fabricated legal ID","no product integration"]}
+          (R/"result.json").write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8")
+          print("TUR051_RESULT",json.dumps(out,ensure_ascii=False))
+          PY
+          python3 tur051.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR051-KTK-Boundary-Evidence-NOT-RELEASE
+          path: tur051-evidence/
+          if-no-files-found: error
