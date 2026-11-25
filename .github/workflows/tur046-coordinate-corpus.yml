@@ -1,0 +1,192 @@
+name: TUR046 pinned coordinate corpus audit (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur046-coordinate-corpus.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  coordinates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15022263838'
+          run-id: '45618167694'
+          github-token: ${{ github.token }}
+          path: prior44
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Coordinate extraction and candidate-only database
+        shell: bash
+        run: |
+          python3 -m pip install --disable-pip-version-check PyMuPDF==1.26.7
+          cat > tur046.py <<'PY'
+          import pathlib, hashlib, json, re, sqlite3, unicodedata, collections, fitz
+          ROOT=pathlib.Path("tur046-evidence");ROOT.mkdir()
+          A=next(pathlib.Path("prior44").rglob("result.json")).parent
+          B=next(pathlib.Path("prior45").rglob("result.json")).parent
+          def sha(b):return hashlib.sha256(b).hexdigest()
+          def check(c,m):
+              if not c:raise RuntimeError(m)
+          def load(p,h):
+              b=p.read_bytes();check(sha(b)==h,str(p));return json.loads(b)
+          a=load(A/"result.json","3036b1cacb467a49c5a21895ab1f66d8c2c3690fefb5c1b87d31101c7b9ba115")
+          b=load(B/"result.json","439c807c3647e566d484bfb80de7c6817238dd6f7b88b795c29a8366ebdd6a08")
+          old={x["id"]:x for x in a["sources"]}
+          new={x["id"]:x for x in b["new_sources"]}
+          inputs=[(5237,A/"raw/m5237.pdf",old["m5237"]["sha256"]),(5271,A/"raw/m5271.pdf",old["m5271"]["sha256"]),(1632,A/"raw/u15.pdf",old["u15"]["sha256"])]
+          inputs += [(n,B/"new-raw"/(str(n)+".pdf"),new[str(n)]["sha256"]) for n in (6136,2918,2559,5395,2863,5275,6114)]
+          HEAD=re.compile(r"^(?:(Ek|Geçici|Mükerrer)\s+)?Madde\s+(\d+(?:\s*/\s*[A-ZÇĞİÖŞÜ]+)?)\s*\.?\s*[-–—]\s*",re.I)
+          ANNEX=re.compile(r"(?:SAYILI KANUNA İŞLENEMEYEN HÜKÜMLER|SAYILI KANUNA EK VE DEĞİŞİKLİK|Sayılı Ana Kanuna İşlenemeyen Hükümler)",re.I)
+          def norm(s):return " ".join(unicodedata.normalize("NFC",s).split())
+          def clean(s):
+              return norm(re.sub(r"\((?:Ek|Değişik|Mülga|İptal)[^()]*\)\s*","",s,flags=re.I))
+          db=sqlite3.connect(ROOT/"coordinate-candidate.sqlite")
+          db.execute("PRAGMA foreign_keys=ON")
+          db.executescript("""CREATE TABLE source(law INTEGER PRIMARY KEY,sha256 TEXT,pages INTEGER);
+          CREATE TABLE line(law INTEGER,page INTEGER,ordinal INTEGER,bbox TEXT,raw TEXT,body TEXT,classification TEXT,spans TEXT,PRIMARY KEY(law,page,ordinal));
+          CREATE TABLE article(id TEXT PRIMARY KEY,law INTEGER,kind TEXT,number TEXT,header_page INTEGER,header_ordinal INTEGER,status TEXT);
+          CREATE TABLE node(id TEXT PRIMARY KEY,article_id TEXT REFERENCES article(id),parent TEXT,kind TEXT,label TEXT,page INTEGER,ordinal INTEGER,status TEXT);
+          CREATE TABLE membership(article_id TEXT REFERENCES article(id),law INTEGER,page INTEGER,ordinal INTEGER,body TEXT,PRIMARY KEY(law,page,ordinal),FOREIGN KEY(law,page,ordinal) REFERENCES line(law,page,ordinal));
+          CREATE TABLE conflict(law INTEGER,page INTEGER,ordinal INTEGER,requested_id TEXT,reason TEXT);
+          CREATE TABLE temporal(id TEXT PRIMARY KEY,record TEXT);
+          CREATE TABLE policy(key TEXT PRIMARY KEY,value TEXT);""")
+          checks=[];stats={}; bodies={}; nodebody={}; all_lines={}
+          def test(label,c):
+              check(c,label);checks.append({"case":label,"pass":True})
+          def page_lines(doc):
+              for pi,p in enumerate(doc,1):
+                  rows=[]
+                  for block in p.get_text("dict")["blocks"]:
+                      for line in block.get("lines",[]):
+                          spans=line["spans"]
+                          raw="".join(s["text"] for s in spans).strip()
+                          if not raw:continue
+                          # Only font-flagged, smaller numeric superscripts are removed from the body; raw preserved.
+                          kept=[s for s in spans if not (s["flags"]&1 and s["size"]<=9 and re.fullmatch(r"\s*\d+\s*",s["text"]))]
+                          body="".join(s["text"] for s in kept).strip()
+                          # Footnotes use 7pt labels and <=11pt text in these documents.
+                          # Small body-font regions are candidates, not certified exclusions.
+                          small=all(s["size"]<=11.1 for s in spans if s["text"].strip())
+                          bold=all(s["flags"]&16 for s in kept if s["text"].strip())
+                          cls="FOOTNOTE_CANDIDATE" if small and line["bbox"][1]>p.rect.height*.58 else ("SUPERSCRIPT_ONLY" if not body else "BODY_CANDIDATE")
+                          rows.append({"bbox":list(line["bbox"]),"raw":raw,"body":body,"cls":cls,"bold":bold,"spans":[{"text":s["text"],"size":s["size"],"flags":s["flags"],"bbox":list(s["bbox"])} for s in spans]})
+                  rows.sort(key=lambda x:(round(x["bbox"][1],1),x["bbox"][0]))
+                  for i,x in enumerate(rows):
+                      x.update(page=pi,ordinal=i)
+                      yield x
+          def add_node(nid,article,parent,k,label,x,law):
+              try:
+                  db.execute("INSERT INTO node VALUES(?,?,?,?,?,?,?,?)",(nid,article,parent,k,label,x["page"],x["ordinal"],"CANDIDATE"))
+                  return nid
+              except sqlite3.IntegrityError:
+                  db.execute("INSERT INTO conflict VALUES(?,?,?,?,?)",(law,x["page"],x["ordinal"],nid,"DUPLICATE_LOGICAL_ID_QUARANTINED"))
+                  return None
+          for law,p,h in inputs:
+              check(sha(p.read_bytes())==h,"pinned PDF "+str(law))
+              doc=fitz.open(p); lines=list(page_lines(doc));all_lines[law]=lines
+              db.execute("INSERT INTO source VALUES(?,?,?)",(law,h,len(doc)))
+              active=para=clause=node=None;annex=False;counts=collections.Counter()
+              for i,x in enumerate(lines):
+                  t=x["body"]; m=HEAD.match(t)
+                  if ANNEX.search(t):annex=True;active=None
+                  if annex:x["cls"]="ANNEX_REVIEW"
+                  elif x["cls"]=="BODY_CANDIDATE" and x["bold"] and not m and i+1<len(lines) and HEAD.match(lines[i+1]["body"]):
+                      x["cls"]="HEADING_CANDIDATE"
+                  if x["cls"]=="BODY_CANDIDATE" and m:
+                      kind=(m.group(1) or "normal").lower();num=re.sub(r"\s+","",m.group(2));aid=f"{law}:{kind}:{num}"
+                      try:
+                          db.execute("INSERT INTO article VALUES(?,?,?,?,?,?,?)",(aid,law,kind,num,x["page"],x["ordinal"],"CANDIDATE"))
+                          active=aid;para=clause=node=None;counts["article"]+=1;bodies[aid]=[]
+                      except sqlite3.IntegrityError:
+                          db.execute("INSERT INTO conflict VALUES(?,?,?,?,?)",(law,x["page"],x["ordinal"],aid,"DUPLICATE_ARTICLE_QUARANTINED"));active=None
+                      x["cls"]="ARTICLE_HEADER"
+                      t=t[m.end():].strip()
+                      # Exact source-specific editorial reference preceding a change note, not legal paragraph.
+                      if law==5237 and num=="285" and re.match(r"^\(1\)\s*\(Değişik:",t):
+                          x["cls"]="ARTICLE_HEADER_EDITORIAL_REFERENCE";t=re.sub(r"^\(1\)\s*","",t,count=1);counts["editorial_reference"]+=1
+                  db.execute("INSERT INTO line VALUES(?,?,?,?,?,?,?,?)",(law,x["page"],x["ordinal"],json.dumps(x["bbox"]),x["raw"],x["body"],x["cls"],json.dumps(x["spans"],ensure_ascii=False)))
+                  counts[x["cls"]]+=1
+                  if not active or x["cls"] not in ("BODY_CANDIDATE","ARTICLE_HEADER","ARTICLE_HEADER_EDITORIAL_REFERENCE"):continue
+                  # Keep source membership even where hierarchy is uncertain.
+                  db.execute("INSERT INTO membership VALUES(?,?,?,?,?)",(active,law,x["page"],x["ordinal"],t));bodies[active].append(t)
+                  q=re.match(r"^\((\d+)\)\s*(?!\(Değişik:)",t)
+                  if law in (1632,2559,6136) and not q:q=re.match(r"^(\d+)\)\s+",t)
+                  z=re.match(r"^([a-zçğıöşü])\)\s*",t)
+                  sub=re.match(r"^(\d+)\.\s+",t)
+                  if q:
+                      para=add_node(active+"/p:"+q.group(1),active,active,"paragraph",q.group(1),x,law);clause=None;node=para
+                  elif z:
+                      parent=para or active
+                      clause=add_node(parent+"/b:"+z.group(1),active,parent,"clause",z.group(1),x,law);node=clause
+                  elif sub:
+                      parent=clause or para or active
+                      node=add_node(parent+"/s:"+sub.group(1),active,parent,"subclause",sub.group(1),x,law)
+                      if not clause:counts["unscoped_numeric_marker"]+=1
+                  if node:nodebody.setdefault(node,[]).append(t)
+              stats[str(law)]={"pages":len(doc),"counts":dict(counts)}
+              doc.close()
+          def body(id):return clean(" ".join(bodies[id]))
+          def nb(id):return clean(" ".join(nodebody[id]))
+          test("TCK_285_editorial_reference_not_paragraph",stats["5237"]["counts"].get("editorial_reference")==1 and db.execute("SELECT count(*) FROM node WHERE id='5237:normal:285/p:1'").fetchone()[0]==1 and "Soruşturmanın gizliliğini" in nb("5237:normal:285/p:1"))
+          test("1632_66_legacy_paragraph_parents",all(db.execute("SELECT count(*) FROM node WHERE id=?",(f"1632:normal:66/p:{n}/b:{c}",)).fetchone()[0]==1 for n in (1,2) for c in ("a","b")))
+          test("target_duplicates_not_quarantined",db.execute("SELECT count(*) FROM conflict WHERE requested_id LIKE '5237:normal:285/%' OR requested_id LIKE '1632:normal:66/%'").fetchone()[0]==0)
+          test("CMK_253_superscript_101_separate",any(x["page"]==101 and any(s["text"].strip()=="101" and s["flags"]&1 and s["size"]<=9 for s in x["spans"]) and "101" not in x["body"] for x in all_lines[5271]))
+          rg=(A/"derived/rg7571.txt").read_bytes();check(sha(rg)==old["rg7571"]["text_sha256"],"RG pinned text")
+          rg=rg.decode();hh=list(re.finditer(r"(?m)^MADDE[ \t]+(\d+)[ \t]*-",rg))
+          def block(n):
+              x=next(x for x in hh if int(x.group(1))==n);y=next(y for y in hh if y.start()>x.start() and int(y.group(1))==n+1);return rg[x.start():y.start()]
+          def quote(n,i):return re.findall(r"“([^”]+)”",block(n),re.S)[i]
+          comparisons=[]
+          for n,aid in [(21,"5237:normal:223"),(22,"5271:normal:128/A"),(26,"5271:geçici:8")]:
+              q=quote(n,0);q=q[q.index("(1)"):]
+              q=re.split(r"(?m)^[ \t]*(?=\(\d+\)[ \t]+)",q)[0]
+              target=body(aid);needle=clean(q)
+              comparisons.append({"amending_article":n,"target":aid,"scope":"first paragraph exact normalized inclusion","match":needle in target,"needle_sha256":sha(needle.encode())})
+          q=clean(quote(24,1));target=nb("5271:normal:253/p:1/b:b/s:7")
+          comparisons.append({"amending_article":24,"target":"5271:normal:253/p:1/b:b/s:7","scope":"replacement in correct subclause","match":q in target,"needle_sha256":sha(q.encode())})
+          target=nb("5271:normal:280/p:1/b:e")
+          comparisons.append({"amending_article":25,"target":"5271:normal:280/p:1/b:e","scope":"context and old phrase absent","match":"289 uncu maddede belirtilen bir hukuka aykırılık" in target and clean(quote(25,0)) not in target})
+          # Preserve exact decision PDF identity and manually reviewed page anchors from TUR045,
+          # without interpreting a scan automatically or asserting a current norm.
+          temporal=[]
+          for key,case,rgdate,delay,pages,version in [
+              ("rg2023decision","E.2022/120 K.2023/107","2023-08-01","1 year",[14,15],"pre-7499 CMK 231/5-14"),
+              ("rg2025decision","E.2024/98 K.2025/149","2025-12-31","9 months",[40],"7499 CMK 231/5-14; CMK 247/3")]:
+              p=B/"new-raw"/(key+".pdf");check(sha(p.read_bytes())==new[key]["sha256"],key)
+              d=fitz.open(p);check(all(1<=i<=len(d) for i in pages),key+" pages")
+              temporal.append({"id":key,"case":case,"publication":rgdate,"delay":delay,"reviewed_pages_TUR045":pages,"pdf_sha256":new[key]["sha256"],"target_version":version,"status":"HISTORICAL_LINK_CANDIDATE","automatic_effect":False})
+              d.close()
+          for law,aid,marker in [(7589,"5271:normal:231","7589/15"),(7589,"5271:normal:247","7589/16"),(7593,"5271:normal:253","7593"),(7499,"5271:normal:231","7499")]:
+              text=" ".join(bodies.get(aid,[]))
+              temporal.append({"id":f"{law}:{aid}","law":law,"target":aid,"marker":marker,"body_marker_present":marker in text,"status":"VERSION_RELATION_REVIEW_REQUIRED","automatic_effect":False})
+          for t in temporal:db.execute("INSERT INTO temporal VALUES(?,?)",(t["id"],json.dumps(t,ensure_ascii=False)))
+          db.executemany("INSERT INTO policy VALUES(?,?)",[("promotion_allowed","false"),("official_legal_source","NOT_VERIFIED"),("production","NO-GO")])
+          db.commit()
+          test("ten_pinned_law_sources",db.execute("SELECT count(*) FROM source").fetchone()[0]==10)
+          test("sqlite_integrity",db.execute("PRAGMA integrity_check").fetchone()[0]=="ok")
+          test("foreign_keys",not db.execute("PRAGMA foreign_key_check").fetchall())
+          counts={t:db.execute("SELECT count(*) FROM "+t).fetchone()[0] for t in ("source","line","article","node","membership","conflict","temporal")}
+          conflicts=db.execute("SELECT law,page,ordinal,requested_id,reason FROM conflict ORDER BY law,page,ordinal").fetchall()
+          db.close()
+          out={"status":"COORDINATE_CANDIDATE_ONLY","promotion_allowed":False,"production":"NO-GO","official_legal_source":"NOT_VERIFIED","physical_uat":"NOT_RUN","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","fitz":fitz.VersionBind,"counts":counts,"stats":stats,"checks":checks,"comparisons":comparisons,"conflicts":conflicts,"temporal":temporal,"limitations":["font/position heuristic, not full footnote or heading certification","conflicts quarantined, not deleted or certified","source lines retained even if excluded from candidate body","no current-law promotion or full temporal acceptance"]}
+          (ROOT/"result.json").write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8")
+          print("TUR046_RESULT",json.dumps(out,ensure_ascii=False))
+          PY
+          python3 tur046.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR046-Coordinate-Corpus-Evidence-NOT-RELEASE
+          path: tur046-evidence/
+          if-no-files-found: error
