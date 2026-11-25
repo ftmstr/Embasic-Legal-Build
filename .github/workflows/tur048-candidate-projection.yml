@@ -1,0 +1,227 @@
+name: TUR048 isolated read-only candidate projection (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur048-candidate-projection.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  projection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: prior47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Build separate withheld-by-default candidate projection
+        shell: bash
+        run: |
+          cat > tur048.py <<'PY'
+          import pathlib,sqlite3,hashlib,json,re,datetime as dt,html.parser,unicodedata,calendar
+          ROOT=pathlib.Path("tur048-evidence");ROOT.mkdir()
+          A=next(pathlib.Path("prior47").rglob("result.json")).parent
+          B=next(pathlib.Path("prior45").rglob("result.json")).parent
+          def sha(b):return hashlib.sha256(b).hexdigest()
+          def ck(c,m):
+              if not c:raise RuntimeError(m)
+          def pin(p,h):
+              b=p.read_bytes();ck(sha(b)==h,str(p));return b
+          prior=json.loads(pin(A/"result.json","ef531d0b2820a21092a754dfc053c46f005a8a06db0b3fdfdaf69dadea9e5f15"))
+          src=A/"grammar-candidate.sqlite"
+          pin(src,"3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e")
+          p45=json.loads(pin(B/"result.json","439c807c3647e566d484bfb80de7c6817238dd6f7b88b795c29a8366ebdd6a08"))
+          s45={x["id"]:x for x in p45["new_sources"]}
+          c=sqlite3.connect(src.resolve().as_uri()+"?mode=ro",uri=True);c.row_factory=sqlite3.Row
+          c.execute("PRAGMA query_only=ON")
+          checks=[]
+          def test(n,v):
+              ck(v,n);checks.append({"case":n,"pass":True})
+          def rows(q,p=()):return [dict(x) for x in c.execute(q,p)]
+          def line(l,p,o):
+              x=c.execute("SELECT * FROM line WHERE law=? AND page=? AND ordinal=?",(l,p,o)).fetchone();ck(x is not None,("line",l,p,o));return dict(x)
+          def member(l,p,o):
+              x=c.execute("SELECT * FROM membership WHERE law=? AND page=? AND ordinal=?",(l,p,o)).fetchone();ck(x is not None,("membership",l,p,o));return dict(x)
+          articles=rows("SELECT * FROM article")
+          ids={x["id"] for x in articles}
+          zones={(x["law"],x["page"],x["ordinal"]):x["zone"] for x in rows("SELECT * FROM source_zone")}
+          overlay=rows("SELECT * FROM grammar_overlay ORDER BY law,page,ordinal")
+          dispositions=rows("SELECT * FROM conflict_disposition")
+          conflicts=rows("SELECT * FROM conflict")
+          groups=rows("SELECT * FROM grammar_group")
+          def coord(x):return x["law"],x["page"],x["ordinal"]
+          def owner(old):
+              candidates=[x for x in ids if old==x or old.startswith(x+"/")]
+              return max(candidates,key=len) if candidates else None
+          affected={}
+          def hold(a,reason):
+              if a in ids:affected.setdefault(a,set()).add(reason)
+          review=[]
+          for x in overlay:
+              loc=coord(x);l=line(*loc)
+              m=c.execute("SELECT article_id FROM membership WHERE law=? AND page=? AND ordinal=?",loc).fetchone()
+              a=owner(x["old_id"])
+              if a:hold(a,"GRAMMAR_REVIEW")
+              if m:hold(m[0],"GRAMMAR_REVIEW")
+              review.append(dict(x,source_raw=l["raw"],source_bbox=json.loads(l["bbox"]),source_text_sha256=sha(l["raw"].encode()),source_class=l["classification"],member_article=m[0] if m else None,legal_citation=None))
+          for x in conflicts:
+              hold(owner(x["requested_id"]),"CONFLICT_REVIEW")
+              m=c.execute("SELECT article_id FROM membership WHERE law=? AND page=? AND ordinal=?",coord(x)).fetchone()
+              if m:hold(m[0],"CONFLICT_REVIEW")
+          for x in groups:hold(x["article_id"],"GROUP_REVIEW")
+          zone_members=rows("SELECT m.* FROM membership m JOIN source_zone z USING(law,page,ordinal)")
+          for x in zone_members:hold(x["article_id"],"EXCLUDED_ZONE")
+          for a in articles:
+              if (a["law"],a["header_page"],a["header_ordinal"]) in zones:hold(a["id"],"EXCLUDED_HEADER")
+          # Source-anchored list review, including first lists and previously nonconflicting tails.
+          # These are evidence coordinates, never legal paragraph numbers.
+          specs=[
+          ("2559:normal:9",7,20,[(7,21),(7,22),(7,23),(7,24)],"abcç"),
+          ("2559:normal:9",7,26,[(7,27),(7,29),(7,31),(7,32),(7,36),(7,37)],"abcçde"),
+          ("2559:normal:16",11,3,[(11,4),(11,6)],"ab"),
+          ("2559:normal:16",11,20,[(11,21),(11,22),(11,24),(11,27)],"abcd"),
+          ("2918:normal:4",7,26,[(7,27),(7,28)],"ab"),
+          ("2918:normal:4",8,5,[(8,6),(8,7)],"ab"),
+          ("2918:normal:31",27,18,[(27,19),(27,20),(27,25),(27,26)],"abcd"),
+          ("2918:normal:31",28,8,[(28,9),(28,10),(28,12),(28,13),(28,16),(28,19)],"abcdef"),
+          ("2918:normal:46",37,18,[(37,19),(37,21),(37,23),(37,24),(37,25),(37,32),(38,1),(38,3),(38,5),(38,7),(38,9),(38,10),(38,12),(38,14)],"abcdefghijklmn"),
+          ("2918:normal:46",38,24,[(38,25),(38,27),(38,28),(38,29),(38,30),(38,31)],"abcdef"),
+          ("2918:normal:47",39,21,[(39,22),(39,24),(39,25),(39,27)],"abcd"),
+          ("2918:normal:47",39,35,[(39,36),(40,0),(40,1),(40,2),(40,3)],"abcde"),
+          ("2918:normal:51",44,13,[(44,14),(44,24)],"ab"),
+          ("2918:normal:51",44,35,[(45,0),(45,1),(45,2)],"abc"),
+          ("2918:normal:51",45,4,[(45,5),(45,6),(45,7)],"abc"),
+          ("2918:normal:65",53,26,[(53,27),(53,28),(53,29),(53,31),(54,0),(54,1),(54,3),(54,4),(54,7),(54,9),(54,11),(54,13)],"abcdefghijkl"),
+          ("2918:normal:65",54,29,[(54,30),(54,31),(54,32),(54,33),(54,34)],"abcde"),
+          ("2918:ek:2",87,10,[(87,11),(87,12),(87,13)],"abc"),
+          ("2918:ek:2",87,25,[(87,26),(87,27),(87,28)],"abc")]
+          list_review=[]
+          for a,p,o,locs,labels in specs:
+              l=int(a.split(":")[0]);lead=member(l,p,o)
+              ck(lead["article_id"]==a and len(locs)==len(labels),("lead",a,p,o))
+              members=[]
+              for (pp,oo),label in zip(locs,labels):
+                  m=member(l,pp,oo);ck(m["article_id"]==a and m["body"].startswith(label+")") and (pp,oo)>(p,o) and (l,pp,oo) not in zones,("list",a,pp,oo,label))
+                  members.append({"page":pp,"ordinal":oo,"literal_label":label,"source_sha256":sha(m["body"].encode())})
+              list_review.append({"article":a,"lead_page":p,"lead_ordinal":o,"lead_text":lead["body"],"members":members,"legal_paragraph_number":None,"status":"REVIEW_REQUIRED"})
+          test("all_overlay_anchors_resolve_without_assigning_legal_citation",len(review)==119 and all(x["source_raw"] and x["legal_citation"] is None for x in review))
+          test("all_45_dispositions_still_in_review",len(dispositions)==45 and {coord(x) for x in dispositions}=={coord(x) for x in conflicts} and all(coord(x) in {coord(y) for y in overlay} for x in dispositions))
+          test("first_and_repeat_lists_reviewed_at_source_coordinates",len(list_review)==19 and all(len(x["members"])>0 for x in list_review))
+          test("PVSK_9_tail_d_e_in_second_list", [x["literal_label"] for x in list_review[1]["members"]]==list("abcçde"))
+          test("all_55_legacy_anchors_retained_without_legal_numbers",sum(x["kind"]=="legacy_paragraph_candidate" for x in review)==55)
+          # Separate read model. Affected entire article bodies withheld rather than
+          # presenting incomplete text as a complete article. No old node IDs exposed.
+          dst=ROOT/"reader-candidate.sqlite";d=sqlite3.connect(dst);d.execute("PRAGMA foreign_keys=ON")
+          d.executescript("""CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+          CREATE TABLE article_index(id TEXT PRIMARY KEY,law INTEGER,kind TEXT,number TEXT,header_page INTEGER,header_ordinal INTEGER,status TEXT NOT NULL CHECK(status IN ('CANDIDATE_UNVERIFIED','WITHHELD_REVIEW')),reason TEXT NOT NULL);
+          CREATE TABLE reader_line(article_id TEXT NOT NULL REFERENCES article_index(id),law INTEGER,page INTEGER,ordinal INTEGER,body TEXT NOT NULL,PRIMARY KEY(law,page,ordinal));
+          CREATE VIEW candidate_text AS SELECT i.id,i.law,i.kind,i.number,i.status,r.page,r.ordinal,r.body FROM article_index i JOIN reader_line r ON r.article_id=i.id WHERE i.status='CANDIDATE_UNVERIFIED';
+          CREATE TABLE temporal_decision(id TEXT PRIMARY KEY,record TEXT NOT NULL);""")
+          d.executemany("INSERT INTO metadata VALUES(?,?)",[("classification","AUDIT_CANDIDATE_NOT_CURRENT_LAW"),("promotion_allowed","false"),("official_legal_source","NOT_VERIFIED"),("source_db_sha256","3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e"),("body_policy","unverified candidate only; known affected article bodies withheld; no subparagraph citations")])
+          for a in articles:
+              aid=a["id"];status="WITHHELD_REVIEW" if aid in affected else "CANDIDATE_UNVERIFIED"
+              d.execute("INSERT INTO article_index VALUES(?,?,?,?,?,?,?,?)",(aid,a["law"],a["kind"],a["number"],a["header_page"],a["header_ordinal"],status,",".join(sorted(affected.get(aid,set())))))
+          excluded=collections=None
+          eligible=[];counts={"zone":0,"withheld_article":0,"other_nonbody":0}
+          for x in rows("SELECT m.*,l.classification FROM membership m JOIN line l USING(law,page,ordinal)"):
+              if coord(x) in zones:counts["zone"]+=1;continue
+              if x["article_id"] in affected:counts["withheld_article"]+=1;continue
+              if x["classification"] not in ("BODY_CANDIDATE","ARTICLE_HEADER","ARTICLE_HEADER_EDITORIAL_REFERENCE"):counts["other_nonbody"]+=1;continue
+              eligible.append((x["article_id"],x["law"],x["page"],x["ordinal"],x["body"]))
+          d.executemany("INSERT INTO reader_line VALUES(?,?,?,?,?)",eligible)
+          test("38_known_zone_memberships_excluded",counts["zone"]==38 and sum(x["law"]==2918 for x in zone_members)==36 and sum(x["law"]==6114 for x in zone_members)==2)
+          test("no_zone_or_withheld_article_rows_in_reader",all((l,p,o) not in zones and a not in affected for a,l,p,o,t in d.execute("SELECT * FROM reader_line")))
+          test("all_input_memberships_accounted_for",len(eligible)+sum(counts.values())==c.execute("SELECT count(*) FROM membership").fetchone()[0])
+          test("reader_has_no_raw_node_conflict_or_overlay_tables",not set(x[0] for x in d.execute("SELECT name FROM sqlite_master WHERE type='table'")) & {"line","node","membership","grammar_overlay","conflict","source_zone"})
+          test("candidate_body_rows_match_exact_prior_membership",all(member(l,p,o)["body"]==t and member(l,p,o)["article_id"]==a for a,l,p,o,t in eligible))
+          test("known_note_and_header_classes_not_rendered",not set(coord(x) for x in rows("SELECT law,page,ordinal FROM line WHERE classification IN ('FOOTNOTE_CANDIDATE','HEADING_CANDIDATE','SUPERSCRIPT_ONLY','ANNEX_REVIEW')")) & {(l,p,o) for a,l,p,o,t in eligible})
+          # Temporal decision records: exact prior HTML inputs, scoped anchors and explicit
+          # dates from TUR047 documented publication evidence. Never adjudicate a case.
+          def norm(s):return " ".join(unicodedata.normalize("NFC",s).split())
+          class Text(html.parser.HTMLParser):
+              def __init__(self):super().__init__(convert_charrefs=True);self.parts=[];self.hidden=0
+              def handle_starttag(self,t,a):
+                  if t in ("script","style"):self.hidden+=1
+                  if t in ("p","div","br","tr","td","h1","h2"):self.parts.append("\n")
+              def handle_endtag(self,t):
+                  if t in ("script","style"):self.hidden=max(0,self.hidden-1)
+                  if t in ("p","div","tr","td"):self.parts.append("\n")
+              def handle_data(self,d):
+                  if not self.hidden:self.parts.append(d)
+          def text(b):
+              m=re.search(rb"charset\s*=\s*[\x22\x27]?([A-Za-z0-9_-]+)",b[:8192],re.I)
+              enc=m[1].decode("ascii").lower() if m else "utf-8-sig"
+              ck(enc in ("windows-1254","cp1254","utf-8","utf-8-sig","iso-8859-9"),enc)
+              parser=Text();parser.feed(b.decode(enc,errors="strict"));return norm("".join(parser.parts))
+          t49=pin(A/"tb7499.txt","155a14c22506557d27cc1f422a61cf5b83d864675ce0165b7d0c8e9c152db583").decode()
+          t93=pin(A/"tb7593.txt","4762c48a4f1508e46c398b7496347ad6a14e18ea4b9e99cab7950fe4db92c274").decode()
+          t89=text(pin(B/"new-raw/tb7589.html",s45["tb7589"]["sha256"]))
+          def block(t,n):
+              h=list(re.finditer(r"(?<!\w)MADDE\s+"+str(n)+r"\s*[-–]",t))[-1]
+              e=next(x for x in re.finditer(r"(?<!\w)MADDE\s+"+str(n+1)+r"\s*[-–]",t) if x.start()>h.start())
+              return t[h.start():e.start()].strip()
+          blocks={"7499-22":block(t49,22),"7499-40":block(t49,40),"7589-26":block(t89,26),"7593-16":block(t93,16)}
+          test("effective_clause_7589_26_c_scoped", "c) Diğer maddeleri yayımı tarihinde" in blocks["7589-26"] and "15 inci" not in blocks["7589-26"] and "16 ncı" not in blocks["7589-26"])
+          test("7499_transition_scope_and_7593_exception",all(s in blocks["7499-22"] for s in ("(2) a)","1/6/2024","onbirinci ve onikinci","itiraz","sanığın kabul")) and "ç) Diğer hükümleri yayımı tarihinde" in blocks["7499-40"] and "43/C maddesinin birinci fıkrasının (a) bendi" in blocks["7593-16"] and "b) Diğer hükümleri yayımı tarihinde" in blocks["7593-16"])
+          events=[]
+          def ev(id,source,target,axis,date,condition,ref):
+              events.append({"id":id,"source":source,"target":target,"axis":axis,"date_candidate":date,"condition":condition,"source_block_sha256":sha(blocks[ref].encode()) if ref in blocks else None,"source_anchor":ref,"automatic_effect":False,"status":"REVIEW_REQUIRED"})
+          ev("7499-publication","7499","CMK 231 amended version","general_effective","2024-03-12","m15 not among m40(a-c) exceptions","7499-40")
+          for id,condition in [("before","HAGB decision before threshold: prior objection procedure"),("after","HAGB decision on or after threshold: amended 231(11)-(12) appeal provisions"),("reopening","HAGB before threshold then judgment announced/re-established: prior 231(11) procedure"),("consent","HAGB before threshold: defendant consent condition continues")]:
+              ev("7499-"+id,"7499","CMK temporary 6(2)","decision_date_threshold","2024-06-01",condition,"7499-22")
+          ev("7589-15","7589","CMK 231","general_effective","2026-07-31","m15 not among m26(a-b) exceptions","7589-26")
+          ev("7589-16","7589","CMK 247/3","general_effective","2026-07-31","m16 not among m26(a-b) exceptions","7589-26")
+          ev("7593-15-2","7593","CMK 253/1-c","general_effective","2026-08-18","m15(2) not the m16(a) exception","7593-16")
+          ev("7593-exception","7593","5326 43/C(1)(a)","exception","2026-12-01","not CMK 253/1-c","7593-16")
+          for key,case,date,months,target,pages in [("rg2023decision","2023/107","2023-08-01",12,"pre-7499 CMK 231/5-14",[14,15]),("rg2025decision","2025/149","2025-12-31",9,"7499-version CMK 231/5-14 and CMK 247/3",[40])]:
+              pin(B/"new-raw"/(key+".pdf"),s45[key]["sha256"])
+              start=dt.date.fromisoformat(date);m=start.month-1+months;y=start.year+m//12;m=m%12+1
+              candidate=dt.date(y,m,min(start.day,calendar.monthrange(y,m)[1])).isoformat()
+              ev(case,key,target,"deferred_annulment_calendar_candidate",candidate,"prior visual ruling; no automatic transfer to subsequent version",f"TUR045 PDF pages {pages}; publication {date}; delay {months} months")
+              events[-1]["source_pdf_sha256"]=s45[key]["sha256"]
+              events[-1]["publication_date"]=date
+              events[-1]["delay_months"]=months
+          for e in events:d.execute("INSERT INTO temporal_decision VALUES(?,?)",(e["id"],json.dumps(e,ensure_ascii=False)))
+          test("temporal_axes_separate_and_no_automatic_effect",len(events)==11 and all(not e["automatic_effect"] and e["status"]=="REVIEW_REQUIRED" for e in events))
+          d.commit()
+          test("reader_sqlite_integrity_and_fk",d.execute("PRAGMA integrity_check").fetchone()[0]=="ok" and not d.execute("PRAGMA foreign_key_check").fetchall())
+          d.close()
+          # Supported consumer open is read-only. This does not protect against a caller
+          # deliberately opening a writable copy or a hostile untrusted database.
+          digest=sha(dst.read_bytes())
+          ro=sqlite3.connect(dst.resolve().as_uri()+"?mode=ro",uri=True)
+          ro.execute("PRAGMA query_only=ON")
+          def denied(sql):
+              try:ro.execute(sql);return False
+              except sqlite3.OperationalError as e:return "readonly" in str(e).lower() or "read-only" in str(e).lower()
+          test("read_only_consumer_refuses_mutation",denied("DELETE FROM reader_line") and denied("CREATE TABLE forbidden(x)") and denied("UPDATE metadata SET value='true' WHERE key='promotion_allowed'"))
+          test("held_2918_138_and_6114_21_return_no_body",all(ro.execute("SELECT count(*) FROM candidate_text WHERE id=?",(x,)).fetchone()[0]==0 for x in ("2918:normal:138","6114:normal:21")))
+          test("ordinary_unverified_sample_still_readable",ro.execute("SELECT count(*) FROM candidate_text WHERE id='5237:normal:1'").fetchone()[0]>0)
+          ro.close()
+          test("read_only_bytes_unchanged",sha(dst.read_bytes())==digest and sha(src.read_bytes())=="3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e")
+          c.close()
+          audit={"classification":"AUDIT_REVIEW_ONLY_NOT_READER","overlay_review":review,"dispositions":dispositions,"list_review":list_review,"zone_membership_coordinates":[{k:x[k] for k in ("law","page","ordinal","article_id")} for x in zone_members],"affected_articles":{k:sorted(v) for k,v in sorted(affected.items())},"temporal":events}
+          (ROOT/"review-only.json").write_text(json.dumps(audit,ensure_ascii=False,indent=2),encoding="utf-8")
+          out={"status":"CANDIDATE_PROJECTION_ONLY","promotion_allowed":False,"official_legal_source":"NOT_VERIFIED","production":"NO-GO","physical_uat":"NOT_RUN","license_release":"NO-GO","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","reader_sha256":digest,"article_index":len(articles),"withheld_articles":len(affected),"candidate_articles":len(articles)-len(affected),"reader_lines":len(eligible),"excluded_memberships":counts,"overlay_review":len(review),"list_groups":len(list_review),"list_items":sum(len(x["members"]) for x in list_review),"temporal_records":len(events),"checks":checks,"unknown_uyap":["112987","103106","103320","103798","102981"],"limitations":["known zones and affected bodies excluded; no global legal completeness or classification guarantee","only supported read-only SQLite connection tested, not hostile database or file-level authorization","source anchored manual list candidates, not authoritative paragraph numbering","temporal table is review-only, not automatic legal decision","not integrated into product"]}
+          (ROOT/"result.json").write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8")
+          print("TUR048_RESULT",json.dumps(out,ensure_ascii=False))
+          PY
+          python3 tur048.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR048-Candidate-Projection-Evidence-NOT-RELEASE
+          path: tur048-evidence/
+          if-no-files-found: error
