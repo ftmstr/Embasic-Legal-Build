@@ -150,8 +150,8 @@ jobs:
           comparisons=[]
           for n,aid in [(21,"5237:normal:223"),(22,"5271:normal:128/A"),(26,"5271:geçici:8")]:
               q=quote(n,0);q=q[q.index("(1)"):]
-              q=re.split(r"(?m)^[ \t]*(?=\(\d+\)[ \t]+)",q)[0]
-              target=body(aid);needle=clean(q)
+              q=re.split(r"(?m)^[ \t]*(?=\(\d+\)[ \t]+)",q)[1] if q.startswith("(1)") else q
+              target=body(aid);needle=clean(q);check(len(needle)>60,"nonempty first paragraph comparison")
               comparisons.append({"amending_article":n,"target":aid,"scope":"first paragraph exact normalized inclusion","match":needle in target,"needle_sha256":sha(needle.encode())})
           q=clean(quote(24,1));target=nb("5271:normal:253/p:1/b:b/s:7")
           comparisons.append({"amending_article":24,"target":"5271:normal:253/p:1/b:b/s:7","scope":"replacement in correct subclause","match":q in target,"needle_sha256":sha(q.encode())})
