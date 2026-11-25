@@ -1,0 +1,92 @@
+name: TUR042 independent audit release preflight (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur042-release-preflight.yml','tools/audit_release_preflight.py']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  preflight:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15007859543'
+          run-id: '45585922450'
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Exercise independent CLI and packaging caller exit contract
+        shell: pwsh
+        run: |
+          @'
+          import pathlib, hashlib, subprocess, json, sys, os
+          root=pathlib.Path("tur042-evidence"); root.mkdir()
+          work=pathlib.Path("tur042-work"); work.mkdir()
+          head="9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f"
+          pinned="83db400dc7a079f256eb1a37e8dece3e58ee207a358d022a4f114c999a0ec455"
+          tool=pathlib.Path("tools/audit_release_preflight.py")
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def check(c,m):
+              if not c: raise RuntimeError(m)
+          matches=list(pathlib.Path("previous").rglob("TUR041-DOCUMENTS-ONLY-NOT-RELEASE.zip"))
+          check(len(matches)==1,"prior candidate count")
+          candidate=matches[0]
+          check(sha(candidate.read_bytes())==pinned,"prior candidate identity")
+          record=work/"untrusted-test-record.json"
+          record.write_text(json.dumps({"purpose":"SYNTHETIC_NEGATIVE_TEST_ONLY","release_allowed":True,"approval_authority":"NOT_AN_ACTUAL_AUTHORITY","product_head":head,"package_sha256":pinned}),encoding="utf-8")
+          marker=work/"synthetic-product.txt"; marker.write_bytes(b"synthetic packaging input, NOT an EXE or distribution")
+          markerhash=sha(marker.read_bytes())
+          result={"audit_only":True,"production":"NO-GO","license_release":"NO-GO","physical_uat":"NOT_RUN","official_law":"NOT_VERIFIED","product_head":head,"tool_sha256":sha(tool.read_bytes()),"tests":[]}
+          def args(path=candidate,kind="documents",digest=pinned,product_head=head):
+              return ["--package",str(path),"--kind",kind,"--product-head",product_head,"--expected-sha256",digest]
+          def invoke(label,argv,code,status=None,env=None,approval=None,integrity=None):
+              p=subprocess.run([sys.executable,str(tool)]+argv,capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=30,env=env)
+              check(p.returncode==code,(label,p.returncode,p.stdout,p.stderr))
+              row={"case":label,"exit_code":p.returncode,"pass":True}
+              if status:
+                  v=json.loads(p.stdout)
+                  check(v["release_allowed"] is False and v["status"]==status and len(v["open_gates"])==8 and v["enrolled_authority_count"]==0,label)
+                  if approval: check(v["approval_status"]==approval,label)
+                  if integrity: check(v["integrity"]==integrity,label)
+                  row["result"]=v
+              else: check(not p.stdout.strip(),label)
+              result["tests"].append(row)
+          try:
+              invoke("standalone_pinned_candidate_exit78",args(),78,"DENY_NO_ENROLLED_AUTHORITY",approval="NO_TRUST_ROOT",integrity="PINNED_DOCUMENT_MATCH")
+              invoke("untrusted_external_record_cannot_authorize",args()+["--approval-record",str(record)],78,"DENY_NO_ENROLLED_AUTHORITY",approval="UNTRUSTED_RECORD_NO_ENROLLED_AUTHORITY")
+              env=os.environ.copy(); env.update(RELEASE_ALLOWED="true",APPROVAL_AUTHORITY="synthetic",GITHUB_REF="refs/heads/main")
+              invoke("environment_override_ignored",args(),78,"DENY_NO_ENROLLED_AUTHORITY",env=env)
+              invoke("product_caller_hash_is_not_authority",args(marker,"product",markerhash),78,"DENY_NO_ENROLLED_AUTHORITY",integrity="CALLER_DIGEST_MATCH_ONLY")
+              marker.write_bytes(b"changed synthetic input")
+              invoke("changed_product_after_expected_digest",args(marker,"product",markerhash),65,"DENY_INVALID_INPUT")
+              invoke("caller_cannot_replace_pinned_document_digest",args(marker,"documents",sha(marker.read_bytes())),65,"DENY_INVALID_INPUT")
+              invoke("missing_external_record_fails_closed",args()+["--approval-record",str(work/"absent.json")],65,"DENY_INVALID_INPUT")
+              big=work/"oversize-record.json"; big.write_bytes(b"x"*65537)
+              invoke("oversized_external_record_fails_closed",args()+["--approval-record",str(big)],65,"DENY_INVALID_INPUT")
+              invoke("no_command_line_trust_override",args()+["--allow-release"],2)
+              invoke("missing_required_arguments",[],2)
+              # Exercise a separate process caller, without a release job or upload path.
+              script=work/"caller.ps1"
+              script.write_text("param([string]$Tool,[string]$Candidate,[string]$Head,[string]$Digest,[string]$Marker)\npython $Tool --package $Candidate --kind documents --product-head $Head --expected-sha256 $Digest\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\nSet-Content -LiteralPath $Marker -Value 'SYNTHETIC ONLY'\n",encoding="utf-8")
+              sentinel=work/"would-publish.marker"
+              p=subprocess.run(["pwsh","-NoProfile","-File",str(script),str(tool.resolve()),str(candidate.resolve()),head,pinned,str(sentinel.resolve())],capture_output=True,text=True,timeout=30)
+              check(p.returncode==78 and not sentinel.exists(),"caller must stop on nonzero")
+              result["tests"].append({"case":"powershell_caller_stops_before_synthetic_publish_marker","exit_code":p.returncode,"marker_exists":sentinel.exists(),"pass":True})
+              result.update(status="AUDIT_PREFLIGHT_VERIFIED_NO_AUTHORITY",tests_passed=len(result["tests"]))
+          finally:
+              (root/"result.json").write_text(json.dumps(result,indent=2,sort_keys=True),encoding="utf-8")
+              print("TUR042_RESULT",json.dumps(result))
+          '@ | Set-Content -Encoding utf8 tur042.py
+          python tur042.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR042-Independent-Preflight-Evidence-NOT-RELEASE
+          path: tur042-evidence/
+          if-no-files-found: error
