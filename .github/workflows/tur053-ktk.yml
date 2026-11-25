@@ -1,0 +1,118 @@
+name: TUR053 KTK repeated clause boundary (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur053-ktk.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060085952'
+          run-id: '45693327586'
+          github-token: ${{ github.token }}
+          path: prior52
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: prior47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Verify exact repeated groups and quarantine neighboring chapter leak
+        shell: bash
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          cat > tur053.py <<'PY'
+          import pathlib,sqlite3,hashlib,json,shutil,subprocess,unicodedata,re
+          R=pathlib.Path("tur053-evidence");R.mkdir()
+          def sha(b):return hashlib.sha256(b).hexdigest()
+          def ck(v,m):
+              if not v:raise RuntimeError(m)
+          def pin(p,h):
+              b=p.read_bytes();ck(sha(b)==h,str(p));return b
+          def root(n):return next(pathlib.Path(n).rglob("result.json")).parent
+          a,b,c=root("prior52"),root("prior47"),root("prior45")
+          pin(a/"result.json","5dd7582a75003981daa2f67fcc972aa879744c51940582b7f35147afcde347e8")
+          base=a/"reader-candidate.sqlite";pin(base,"2d5303313a2886918a5506ee516398b745cb42cb102a8d233c12f5cd0e822818")
+          review=pin(a/"review-only.json","fe586ceb946df3ecabf7000029f14f704cbbc78ff16904e0bc88c33a4278e747")
+          (R/"review-only.json").write_bytes(review)
+          prior_boundary=pin(a/"boundary-review.json","49277893e2f15ea0c99482b3c47fa843434ffe8419dc4ec0da82b03d1561c474")
+          (R/"prior-boundary-review.json").write_bytes(prior_boundary)
+          src=b/"grammar-candidate.sqlite";pin(src,"3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e")
+          pdf=c/"new-raw/2918.pdf";pdfhash="44a3394f7b3e5ad7495d26d862086afc699f7013fadc996be686dc3bee4fd8ce";pin(pdf,pdfhash)
+          s=sqlite3.connect(src.resolve().as_uri()+"?mode=ro",uri=True);s.row_factory=sqlite3.Row;s.execute("PRAGMA query_only=ON")
+          def norm(t):return " ".join(unicodedata.normalize("NFC",t).split())
+          def page(p):return norm(subprocess.check_output(["pdftotext","-f",str(p),"-l",str(p),"-layout",str(pdf),"-"],timeout=30).decode("utf-8"))
+          def line(p,o):return dict(s.execute("SELECT * FROM line WHERE law=2918 AND page=? AND ordinal=?",(p,o)).fetchone())
+          checks=[]
+          def test(n,v):ck(v,n);checks.append({"case":n,"pass":True})
+          aid="2918:normal:51";hold="2918:normal:49"
+          rs=[dict(x) for x in s.execute("SELECT m.*,l.raw,l.bbox,l.classification FROM membership m JOIN line l USING(law,page,ordinal) WHERE article_id=? ORDER BY m.page,m.ordinal",(aid,))]
+          coords=[(44,o) for o in range(9,36)]+[(45,o) for o in range(25)]
+          test("exact_52_body_coordinates",[(x["page"],x["ordinal"]) for x in rs]==coords and all(x["classification"] in ("ARTICLE_HEADER","BODY_CANDIDATE") for x in rs))
+          p43,p44,p45=map(page,(43,44,45))
+          title=line(44,8);note=[line(44,o) for o in (36,37)]
+          nt=norm(" ".join(x["raw"] for x in note))
+          start=rs[0]["raw"];nexttitle=line(45,25)["raw"]
+          test("pdf_title_and_note46",title["raw"]=="Hız sınırlarına uyma zorunluluğu:46" and title["body"]=="Hız sınırlarına uyma zorunluluğu:" and title["classification"]=="HEADING_CANDIDATE" and any(x["text"].strip()=="46" and x["flags"]&1 and x["size"]<=9 for x in json.loads(title["spans"])) and all(x["classification"]=="FOOTNOTE_CANDIDATE" for x in note) and p44.count(nt)==1 and title["raw"] in p44)
+          test("independent_complete_pdf_article",p44.count(start)==1 and p45.count(nexttitle)==1 and norm(p44[p44.index(start):].replace(nt,"")+" "+p45[:p45.index(nexttitle)])==norm(" ".join(x["raw"] for x in rs)))
+          test("only_header_removed_change_note_retained",start=="Madde 51 – (Değişik:12/2/2026-7574/14 md.)" and rs[0]["body"]=="(Değişik:12/2/2026-7574/14 md.)" and all(x["raw"]==x["body"] for x in rs[1:]))
+          rv=json.loads(review);g=[x for x in rv["list_review"] if x["article"]==aid]
+          spec=[(44,13,"ab"),(44,35,"abc"),(45,4,"abc")]
+          test("three_source_group_leads",[(x["lead_page"],x["lead_ordinal"],"".join(y["literal_label"] for y in x["members"])) for x in g]==spec and all(x["legal_paragraph_number"] is None and x["lead_text"]==line(x["lead_page"],x["lead_ordinal"])["body"] for x in g))
+          test("eight_literal_bent_anchors",sum(len(x["members"]) for x in g)==8 and all(y["source_sha256"]==sha(line(y["page"],y["ordinal"])["body"].encode()) for x in g for y in x["members"]))
+          test("18_numeric_subclauses_two_parents",all(line(44,o)["body"].startswith(str(i)+") ") for starto in (15,25) for i,o in enumerate(range(starto,starto+9),1)) and line(44,14)["body"]=="a) Yerleşim yeri içinde;" and line(44,24)["body"]=="b) Yerleşim yeri dışında;")
+          test("identical_repeated_bents_not_merged",all(line(45,i)["body"]==line(45,i+5)["body"] for i in range(3)) and "(a) bendinin;" in line(44,35)["body"] and "(b) bendinin;" in line(45,4)["body"])
+          test("new_49_chapter_leak_verified",p43.count("İKİNCİ BÖLÜM Hız Kuralları Hız sınırları: Madde 50")==1 and [line(43,o)["raw"] for o in (32,33)]==["İKİNCİ BÖLÜM","Hız Kuralları"] and s.execute("SELECT count(*) FROM membership WHERE article_id=? AND page=43 AND ordinal IN (32,33)",(hold,)).fetchone()[0]==2)
+          dst=R/"reader-candidate.sqlite";shutil.copyfile(base,dst)
+          d=sqlite3.connect(dst);d.execute("PRAGMA foreign_keys=ON");d.execute("ATTACH DATABASE ? AS old",(base.resolve().as_uri()+"?mode=ro",))
+          ck(d.execute("SELECT status FROM article_index WHERE id=?",(aid,)).fetchone()==("WITHHELD_REVIEW",),"prior 51")
+          ck(d.execute("SELECT status FROM article_index WHERE id=?",(hold,)).fetchone()==("CANDIDATE_UNVERIFIED",),"prior 49")
+          removed=d.execute("SELECT * FROM reader_line WHERE article_id=? ORDER BY page,ordinal",(hold,)).fetchall()
+          test("exact_36_prior_49_rows",len(removed)==36 and [(x[2],x[3],x[4]) for x in removed[-2:]]==[(43,32,"İKİNCİ BÖLÜM"),(43,33,"Hız Kuralları")])
+          d.execute("UPDATE article_index SET status='CANDIDATE_UNVERIFIED',reason='SOURCE_BOUNDARY_REVIEW_ONLY' WHERE id=?",(aid,))
+          d.execute("UPDATE article_index SET status='WITHHELD_REVIEW',reason='NEW_CHAPTER_BOUNDARY_REVIEW' WHERE id=?",(hold,))
+          d.execute("DELETE FROM reader_line WHERE article_id=?",(hold,))
+          added=[(aid,2918,x["page"],x["ordinal"],x["body"]) for x in rs]
+          d.executemany("INSERT INTO reader_line VALUES(?,?,?,?,?)",added)
+          annotations=[]
+          for k,x in [("TITLE",title)]+[("FOOTNOTE",x) for x in note]:
+              h=sha(x["raw"].encode());d.execute("INSERT INTO reader_annotation VALUES(?,?,?,?,?,?)",(aid,k,x["page"],x["ordinal"],x["raw"],h))
+              annotations.append({"kind":k,"page":x["page"],"ordinal":x["ordinal"],"raw":x["raw"],"source_text_sha256":h,"bbox":json.loads(x["bbox"])})
+          d.execute("UPDATE metadata SET value='TUR053' WHERE key='projection_revision'")
+          test("only_two_status_changes",all(set(x[0] for x in d.execute(q))=={aid,hold} for q in ("SELECT id FROM (SELECT * FROM article_index EXCEPT SELECT * FROM old.article_index)","SELECT id FROM (SELECT * FROM old.article_index EXCEPT SELECT * FROM article_index)")))
+          test("exact_52_added_36_held",set(d.execute("SELECT * FROM reader_line EXCEPT SELECT * FROM old.reader_line").fetchall())==set(added) and set(d.execute("SELECT * FROM old.reader_line EXCEPT SELECT * FROM reader_line").fetchall())==set(removed))
+          test("35_held_and_no_body_leak",d.execute("SELECT count(*) FROM article_index WHERE status='WITHHELD_REVIEW'").fetchone()[0]==35 and not d.execute("SELECT * FROM reader_line WHERE article_id IN (SELECT id FROM article_index WHERE status='WITHHELD_REVIEW')").fetchall())
+          excluded=[(2918,98,o) for o in range(34,37)]+[(2918,99,o) for o in (0,1)]+[(2918,43,o) for o in (32,33)]
+          test("prior_43_and_new_two_exclusions",all(not d.execute("SELECT 1 FROM reader_line WHERE law=? AND page=? AND ordinal=?",(l,p,o)).fetchall() for l,p,o in excluded+list(map(tuple,s.execute("SELECT m.law,m.page,m.ordinal FROM membership m JOIN source_zone z USING(law,page,ordinal)")))) and s.execute("SELECT count(*) FROM membership m JOIN source_zone z USING(law,page,ordinal)").fetchone()[0]==38)
+          test("g27_exact_body_unchanged",d.execute("SELECT page,ordinal,body FROM reader_line WHERE article_id='2918:geçici:27' ORDER BY page,ordinal").fetchall()==d.execute("SELECT page,ordinal,body FROM old.reader_line WHERE article_id='2918:geçici:27' ORDER BY page,ordinal").fetchall() and d.execute("SELECT count(*) FROM reader_line WHERE article_id='2918:geçici:27'").fetchone()[0]==22)
+          test("three_annotations_separate",len(annotations)==3 and not d.execute("SELECT * FROM old.reader_annotation EXCEPT SELECT * FROM reader_annotation").fetchall() and not d.execute("SELECT 1 FROM reader_line r JOIN reader_annotation a ON r.article_id=a.article_id AND r.page=a.page AND r.ordinal=a.ordinal").fetchall())
+          test("review_temporal_preserved",len(rv["overlay_review"])==119 and len(rv["list_review"])==19 and sum(len(x["members"]) for x in rv["list_review"])==90 and not d.execute("SELECT * FROM temporal_decision EXCEPT SELECT * FROM old.temporal_decision").fetchall() and not d.execute("SELECT * FROM old.temporal_decision EXCEPT SELECT * FROM temporal_decision").fetchall() and d.execute("SELECT count(*) FROM temporal_decision").fetchone()[0]==11 and all(not json.loads(x[0])["automatic_effect"] for x in d.execute("SELECT record FROM temporal_decision")))
+          d.commit();test("integrity",d.execute("PRAGMA integrity_check").fetchone()==("ok",) and not d.execute("PRAGMA foreign_key_check").fetchall())
+          counts={t:d.execute("SELECT count(*) FROM "+t).fetchone()[0] for t in ("article_index","reader_line","reader_annotation","temporal_decision")}
+          d.close();s.close()
+          (R/"boundary-review.json").write_text(json.dumps({"pdf_sha256":pdfhash,"article":aid,"body_coordinates":coords,"body_block_sha256":sha(norm(" ".join(x["raw"] for x in rs)).encode()),"list_groups":g,"numeric_subclauses":[{"parent_coordinate":[44,p],"coordinates":[[44,o] for o in range(p+1,p+10)],"legal_paragraph_number":None} for p in (14,24)],"annotations":annotations,"chapter_headings":[{"page":43,"ordinal":o,"raw":t,"legal_id":None} for o,t in [(32,"İKİNCİ BÖLÜM"),(33,"Hız Kuralları")]],"new_hold":hold,"removed_reader_rows":removed,"legal_acceptance":False},ensure_ascii=False,indent=2),encoding="utf-8")
+          out={"status":"TUR053_BOUNDARY_CANDIDATE_ONLY","promotion_allowed":False,"official_legal_source":"NOT_VERIFIED","production":"NO-GO","physical_uat":"NOT_RUN","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","counts":counts,"candidate_articles":1473,"withheld_articles":35,"reader_sha256":sha(dst.read_bytes()),"pdf_sha256":pdfhash,"checks":checks,"opened":aid,"new_hold":hold,"limitations":["selected boundary only","new hold entire prior article","source group identifiers not legal numbering","no product integration"]}
+          (R/"result.json").write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8");print(json.dumps(out,ensure_ascii=False))
+          PY
+          python3 tur053.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR053-KTK-Repeated-Clause-Evidence-NOT-RELEASE
+          path: tur053-evidence/
+          if-no-files-found: error
