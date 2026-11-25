@@ -43,7 +43,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import pathlib,hashlib,json,subprocess,sys,sqlite3
-          paths={f"TUR{i}":next(pathlib.Path(f"prior{i}").rglob("reader-candidate.sqlite")) for i in range(49,53)}
+          paths={f"TUR{i:03d}":next(pathlib.Path(f"prior{i}").rglob("reader-candidate.sqlite")) for i in range(49,53)}
           r=pathlib.Path("tur052-pin-evidence");r.mkdir()
           def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
           before={k:sha(p) for k,p in paths.items()}
