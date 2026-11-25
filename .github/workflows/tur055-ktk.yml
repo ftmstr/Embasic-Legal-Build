@@ -1,0 +1,43 @@
+name: TUR055 KTK source boundary (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur055-ktk.yml','tools/audit_tur055_boundary.py']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060707849'
+          run-id: '45696360940'
+          github-token: ${{ github.token }}
+          path: prior54
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: prior47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Run source comparison
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          python3 tools/audit_tur055_boundary.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR055-KTK-Clause-Evidence-NOT-RELEASE
+          path: tur055-evidence/
+          if-no-files-found: error
