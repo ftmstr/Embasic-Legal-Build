@@ -1,0 +1,101 @@
+name: TUR039 pinned Windows SDK REDIST origin (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur039-sdk-redist.yml']
+permissions:
+  contents: read
+jobs:
+  sdk-redist:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare official SDK 7705 archives only
+        shell: pwsh
+        run: |
+          @'
+          import hashlib, pathlib, zipfile, json, urllib.request, xml.etree.ElementTree as ET, subprocess, os, base64, gzip
+          from urllib.parse import urlsplit
+          root=pathlib.Path("tur039-evidence"); root.mkdir(exist_ok=True)
+          work=pathlib.Path("tur039-work"); work.mkdir(exist_ok=True)
+          version="10.0.26100.7705"
+          target="a05f99734f7c4822fefc12b367af21fd0976ed6608752fb1e1e80b6ece7ecbbb"
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def get(url,hosts,limit):
+              with urllib.request.urlopen(url,timeout=180) as r:
+                  assert urlsplit(r.url).scheme=="https" and urlsplit(r.url).hostname in hosts
+                  b=r.read(limit+1)
+                  assert len(b)<=limit
+                  if r.headers.get("Content-Encoding")=="gzip": b=gzip.decompress(b)
+                  assert len(b)<=limit
+                  return b
+          def info(p):
+              env=os.environ.copy(); env["AUDIT_DLL"]=str(p.resolve())
+              cmd="$v=[Diagnostics.FileVersionInfo]::GetVersionInfo($env:AUDIT_DLL); $s=Get-AuthenticodeSignature -LiteralPath $env:AUDIT_DLL; [ordered]@{file_version=$v.FileVersion; product_version=$v.ProductVersion; original_filename=$v.OriginalFilename; signature_status=[string]$s.Status; signer_thumbprint=$s.SignerCertificate.Thumbprint} | ConvertTo-Json -Compress"
+              return json.loads(subprocess.check_output(["pwsh","-NoProfile","-Command",cmd],env=env,text=True,timeout=60))
+          result={"audit_only":True,"production":"NO-GO","license_release":"NO-GO","physical_uat":"NOT_RUN","official_law":"NOT_VERIFIED","baseline_product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","target_sha256":target,"target_bytes":4741488,"target_version":version,"packages":[],"status":"NOT_VERIFIED","sdk_installer_source":"https://go.microsoft.com/fwlink/?linkid=2349110","official_redist":"https://learn.microsoft.com/en-us/legal/windows-sdk/redist","official_license":"https://learn.microsoft.com/en-us/legal/windows-sdk/license"}
+          try:
+              for pkg in ("microsoft.windows.sdk.cpp","microsoft.windows.sdk.cpp.x64"):
+                  rec={"id":pkg,"version":version,"candidates":[],"license_documents":[]}
+                  result["packages"].append(rec)
+                  try:
+                      url=f"https://api.nuget.org/v3-flatcontainer/{pkg}/{version}/{pkg}.{version}.nupkg"
+                      raw=get(url,{"api.nuget.org"},600*1024*1024)
+                      path=work/(pkg+".nupkg"); path.write_bytes(raw)
+                      rec.update({"url":url,"bytes":len(raw),"sha256":sha(raw),"sha512":base64.b64encode(hashlib.sha512(raw).digest()).decode()})
+                      leafurl=f"https://api.nuget.org/v3/registration5-gz-semver2/{pkg}/{version}.json"
+                      leaf=json.loads(get(leafurl,{"api.nuget.org"},8*1024*1024))
+                      caturl=leaf["catalogEntry"]
+                      assert isinstance(caturl,str) and urlsplit(caturl).hostname=="api.nuget.org"
+                      catraw=get(caturl,{"api.nuget.org"},8*1024*1024)
+                      cat=json.loads(catraw)
+                      rec["catalog"]={"url":caturl,"sha256":sha(catraw),"packageHash":cat.get("packageHash"),"packageHashAlgorithm":cat.get("packageHashAlgorithm"),"packageSize":cat.get("packageSize"),"match":cat.get("packageHashAlgorithm")=="SHA512" and cat.get("packageHash")==rec["sha512"] and cat.get("packageSize")==len(raw)}
+                      assert rec["catalog"]["match"]
+                      (root/(pkg+".catalog.json")).write_bytes(catraw)
+                      v=subprocess.run(["dotnet","nuget","verify",str(path),"--all"],capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=180)
+                      (root/(pkg+".verify.log")).write_text(v.stdout+"\n"+v.stderr,encoding="utf-8")
+                      rec["signature_verify_exit"]=v.returncode
+                      assert v.returncode==0
+                      with zipfile.ZipFile(path) as z:
+                          names=z.namelist()
+                          assert len(names)==len(set(n.casefold() for n in names))
+                          assert z.testzip() is None
+                          ns=[n for n in names if n.lower().endswith(".nuspec")]
+                          assert len(ns)==1
+                          nraw=z.read(ns[0]); (root/(pkg+".nuspec")).write_bytes(nraw)
+                          meta=ET.fromstring(nraw)
+                          fields={e.tag.split("}")[-1]:e.text for e in meta.iter() if e.tag.split("}")[-1] in ("id","version","license","licenseUrl")}
+                          assert fields["id"].lower()==pkg and fields["version"]==version
+                          rec["nuspec"]=fields
+                          rec["member_count"]=len(names)
+                          for n in names:
+                              parts=n.lower().replace("\\","/").split("/")
+                              name=parts[-1]
+                              if name=="d3dcompiler_47.dll":
+                                  data=z.read(n); p=work/(pkg+"-"+str(len(rec["candidates"]))+".dll"); p.write_bytes(data)
+                                  redist=("redist" in parts and "d3d" in parts and "x64" in parts)
+                                  rec["candidates"].append({"path":n,"bytes":len(data),"sha256":sha(data),"hash_match":sha(data)==target and len(data)==4741488,"redist_x64":redist,"version":info(p)})
+                              if name and ("license" in name or "notice" in name or "redist.txt"==name or "eula" in name) and name.endswith((".txt",".rtf",".md",".htm",".html")):
+                                  d=z.read(n)
+                                  rec["license_documents"].append({"path":n,"bytes":len(d),"sha256":sha(d)})
+                          rec["status"]="INSPECTED"
+                  except Exception as e:
+                      rec["status"]="NOT_VERIFIED"; rec["error"]=repr(e)
+              verified=[p for p in result["packages"] if p.get("status")=="INSPECTED"]
+              matches=[c for p in verified for c in p["candidates"] if c["hash_match"] and c["redist_x64"] and c["version"]["signature_status"]=="Valid"]
+              other=[c for p in verified for c in p["candidates"] if c["hash_match"]]
+              result["status"]="EXACT_SDK_REDIST_HASH_MATCH" if matches else "EXACT_HASH_NON_REDIST_PATH" if other else "NO_MATCH_IN_VERIFIED_PACKAGES" if len(verified)==2 else "INCOMPLETE_PACKAGE_VERIFICATION"
+          finally:
+              (root/"result.json").write_text(json.dumps(result,indent=2),encoding="utf-8")
+              print("TUR039_RESULT",json.dumps(result))
+          assert all(p.get("status")=="INSPECTED" for p in result["packages"]), "SDK package verification incomplete"
+          '@ | Set-Content -Encoding utf8 tur039.py
+          python tur039.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR039-SDK-REDIST-Evidence-NOT-RELEASE
+          path: tur039-evidence/
+          if-no-files-found: error
