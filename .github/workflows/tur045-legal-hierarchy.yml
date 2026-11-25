@@ -1,0 +1,211 @@
+name: TUR045 pinned legal hierarchy and new official source audit (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur045-legal-hierarchy.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  hierarchy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15022263838'
+          run-id: '45618167694'
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Parse pinned corpus and collect new sources only
+        shell: bash
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          cat > tur045.py <<'PY'
+          import pathlib, re, json, hashlib, sqlite3, unicodedata, concurrent.futures, urllib.request, urllib.parse, subprocess, datetime, html.parser
+          ROOT=pathlib.Path("tur045-evidence"); ROOT.mkdir()
+          PRIOR=next(pathlib.Path("previous").rglob("result.json")).parent
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def norm(s): return " ".join(unicodedata.normalize("NFC",s).split())
+          def check(c,m):
+              if not c: raise RuntimeError(m)
+          check(sha((PRIOR/"result.json").read_bytes())=="3036b1cacb467a49c5a21895ab1f66d8c2c3690fefb5c1b87d31101c7b9ba115","prior identity")
+          prior=json.loads((PRIOR/"result.json").read_text(encoding="utf-8"))
+          sources={r["id"]:r for r in prior["sources"]}
+          def pinned(k):
+              b=(PRIOR/"derived"/(k+".txt")).read_bytes()
+              check(sha(b)==sources[k]["text_sha256"],k+" text input")
+              return b.decode("utf-8")
+          # Keep exact character offsets; mask layout annotations without deleting any source character.
+          ARTICLE=re.compile(r"(?im)(?:^|(?<=\f))[ \t]*(?:(Ek|Geçici|Mükerrer)[ \t]+)?Madde[ \t]+(\d+(?:[ \t]*/[ \t]*[A-ZÇĞİÖŞÜ]+)?)[ \t]*\.?[ \t]*[-–—][ \t]*")
+          FOOT=re.compile(r"(?m)^(?:[ \t]*)\d{1,3}[ \t]*$")
+          ANNEX=re.compile(r"(?im)^[ \t]*(?:\d{4}[ \t]+SAYILI KANUNA İŞLENEMEYEN HÜKÜMLER|\d{4}[ \t]+SAYILI KANUNA EK VE DEĞİŞİKLİK|22/5/1930 Tarihli Ve 1632 Sayılı Ana Kanuna İşlenemeyen Hükümler)")
+          MARK=re.compile(r"(?m)(?:^|(?<=\f))[ \t]*(?:(\(\d+\))|([a-zçğıöşü]\))|(\d+[.)]))[ \t]+")
+          def mask(s):
+              return "".join(c if c in "\n\f" else " " for c in s)
+          def page(s,o): return s.count("\f",0,o)+1
+          def parse(s,law):
+              annex=ANNEX.search(s)
+              limit=annex.start() if annex else len(s)
+              spans=[]; pos=0
+              for p in s[:limit].split("\f"):
+                  for m in [FOOT.search(p)]:
+                      if m:
+                          spans.append((pos+m.start(),pos+len(p),"FOOTNOTE_CANDIDATE"))
+                  pos+=len(p)+1
+              masked=s[:limit]
+              for a,b,k in reversed(spans): masked=masked[:a]+mask(masked[a:b])+masked[b:]
+              hs=list(ARTICLE.finditer(masked)); records=[]; nodes=[]; issues=[]
+              for i,h in enumerate(hs):
+                  end=hs[i+1].start() if i+1<len(hs) else limit
+                  kind=(h.group(1) or "normal").lower()
+                  no=re.sub(r"\s+","",h.group(2)); ident=f"{law}:{kind}:{no}"
+                  # Last preceding title may belong to next article: retain as ambiguous boundary, never certify body.
+                  segment=masked[h.end():end]
+                  # Initial editorial parentheses may precede inline fıkra.
+                  initial=re.match(r"(?s)\s*(?:\((?:Ek|Değişik|Mülga|İptal|Yeniden düzenleme|Anayasa Mahkemesi)[^()]*\)\s*)*(\(\d+\))[ \t]*",segment,re.I)
+                  marks=[]
+                  if initial: marks.append((h.end()+initial.start(1),h.end()+initial.end(1),"paragraph",initial.group(1)))
+                  for m in MARK.finditer(segment):
+                      kind2="paragraph" if m.group(1) else "clause" if m.group(2) else "subclause"
+                      label=m.group(1) or m.group(2) or m.group(3)
+                      start=h.end()+m.start(); stop=h.end()+m.end()
+                      if initial and start<=h.end()+initial.start(1)<stop: continue
+                      marks.append((start,stop,kind2,label))
+                  marks.sort(); para=None; clause=None
+                  records.append({"id":ident,"law":law,"kind":kind,"number":no,"start":h.start(),"body_start":h.end(),"end":end,"page_start":page(s,h.start()),"page_end":page(s,max(h.start(),end-1)),"sha256":sha(s[h.start():end].encode()),"status":"CANDIDATE"})
+                  for j,(a,b,k,label) in enumerate(marks):
+                      if k=="paragraph": para=f"{ident}/p:{label[1:-1]}"; clause=None; nid=para; parent=ident
+                      elif k=="clause": parent=para or ident; clause=f"{parent}/b:{label[:-1]}"; nid=clause
+                      else:
+                          parent=clause or para or ident; nid=f"{parent}/s:{label[:-1]}"
+                          if not clause: issues.append({"id":ident,"offset":a,"issue":"NUMERIC_MARKER_WITHOUT_CLAUSE_REVIEW"})
+                      nodes.append({"id":nid,"parent":parent,"article_id":ident,"kind":k,"label":label,"start":a,"end":marks[j+1][0] if j+1<len(marks) else end,"page":page(s,a),"status":"CANDIDATE"})
+              return records,nodes,spans,issues,limit,masked
+          def find_article(rs,number,kind="normal"):
+              xs=[x for x in rs if x["number"]==number and x["kind"]==kind]
+              check(len(xs)==1,("article identity",number,kind,len(xs))); return xs[0]
+          def text_article(parsed,num,kind="normal"):
+              r=find_article(parsed[0],num,kind); return parsed[5][r["start"]:r["end"]]
+          texts={k:pinned(k) for k in ("m5237","m5271","u15","rg7571")}
+          parsed={k:parse(texts[k],law) for k,law in (("m5237",5237),("m5271",5271),("u15",1632))}
+          checks=[]
+          def test(label,c):
+              check(c,label); checks.append({"case":label,"pass":True})
+          tck,cmk=parsed["m5237"],parsed["m5271"]
+          test("TCK_61_and_328_dot_headers",all(find_article(tck[0],n) for n in ("61","328")))
+          test("TCK_1_inline_first_paragraph",any(n["id"]=="5237:normal:1/p:1" for n in tck[1]))
+          test("TCK_6_f_five_subclauses",{n["label"] for n in tck[1] if n["parent"]=="5237:normal:6/p:1/b:f" and n["kind"]=="subclause"}=={"1.","2.","3.","4.","5."})
+          test("TCK_11_cross_page_paragraph",any(n["id"]=="5237:normal:11/p:2" for n in tck[1]) and find_article(tck[0],"11")["page_end"]>find_article(tck[0],"11")["page_start"])
+          test("CMK_128A",bool(find_article(cmk[0],"128/A")))
+          test("CMK_gecici_8_separate",bool(find_article(cmk[0],"8","geçici")))
+          test("CMK_annex_not_duplicate_gecici_1",sum(r["number"]=="1" and r["kind"]=="geçici" for r in cmk[0])==1)
+          test("TCK_footnote_quarantine",bool(tck[2]) and all(not tck[5][a:b].strip() for a,b,k in tck[2]))
+          # 7571: compare each quoted replacement against the relevant article, not whole corpus.
+          # Full article insertions compare separately for each clause of the quoted text.
+          targets={14:("m5237","32","normal"),15:("m5237","57","normal"),16:("m5237","75","normal"),17:("m5237","89","normal"),18:("m5237","155","normal"),19:("m5237","170","normal"),20:("m5237","220","normal"),21:("m5237","223","normal"),22:("m5271","128/A","normal"),23:("m5271","250","normal"),24:("m5271","253","normal"),25:("m5271","280","normal"),26:("m5271","8","geçici")}
+          # For wording replacement, discard old quoted expressions by explicit ordinal; for full insertions use paragraph/bent pieces.
+          select={14:[0],15:[0],16:[0],17:[1,3],18:[0],19:[1,2,3],20:[1,3,5,6],21:[0],22:[0],23:[1],24:[1,3,4],25:[1],26:[0]}
+          def comparison(s):
+              s=norm(s)
+              # remove explicit editorial annotations only; retain original in index.
+              s=re.sub(r"\((?:Ek|Değişik|Mülga|İptal)[^()]*\)\s*","",s,flags=re.I)
+              return norm(s).replace(" – ","-").replace(" - ","-")
+          amendments=[]; rg=texts["rg7571"]
+          rgheads=list(re.finditer(r"(?m)^MADDE[ \t]+(\d+)[ \t]*-",rg))
+          for number,(k,n,kind) in targets.items():
+              h=next(h for h in rgheads if int(h.group(1))==number)
+              nexthead=next(x for x in rgheads if x.start()>h.start())
+              block=rg[h.start():nexthead.start()]
+              quotes=re.findall(r"“([^”]+)”",block,re.S)
+              selected=[quotes[i] for i in select[number]]
+              target=text_article(parsed[k],n,kind)
+              flat=comparison(target)
+              fragments=[]
+              for q in selected:
+                  # Full article passages contain headings and editorial markers in different places; split on paragraph markers.
+                  pieces=re.split(r"(?m)^[ \t]*(?=\(\d+\)[ \t]+)",q) if number in (21,22,26) else [q]
+                  for piece in pieces:
+                      z=comparison(piece)
+                      if not z: continue
+                      fragments.append({"sha256":sha(norm(piece).encode()),"chars":len(z),"match":z in flat,"preview":z[:90]})
+              repeal=None
+              if number==15:
+                  repeal=bool(re.search(r"\(6\)\s*\(Mülga",target,re.I))
+              # A short word alone does not establish the substitution context.
+              status="FRAGMENT_MATCH_REVIEW_REQUIRED" if all(f["match"] for f in fragments) and repeal is not False and number!=25 else "REVIEW_REQUIRED"
+              amendments.append({"amending_article":number,"law":k,"target":n,"kind":kind,"fragments":fragments,"repeal_marker_match":repeal,"status":status,"effective_date_candidate":"2025-12-25","promotion_allowed":False})
+          # New official URL attempts, never re-fetch prior three PDFs or prior 7571 originals.
+          NEW=[(str(n),f"https://www.mevzuat.gov.tr/MevzuatMetin/{prefix}.{n}.pdf",n) for n,prefix in [(6136,"1.3"),(2918,"1.5"),(2559,"1.3"),(5395,"1.5"),(2863,"1.5"),(5275,"1.5"),(6114,"1.5")]]
+          NEW += [("aym2023","https://normkararlarbilgibankasi.anayasa.gov.tr/kbb/ND/2023/107?EsasNo=2022%2F120",None),("aym2025","https://normkararlarbilgibankasi.anayasa.gov.tr/kbb/ND/2025/149?EsasNo=2024%2F98",None),("rg2023index","https://www.resmigazete.gov.tr/eskiler/2023/08/20230801.htm",None),("rg2025index","https://www.resmigazete.gov.tr/eskiler/2025/12/20251231.htm",None),("tb7589","https://cdn.tbmm.gov.tr/KKBSPublicFile/D28/Y4/KanunMetni/b074aa2a-c1eb-4bd5-b5d9-4b61a9ac3924.htm",None),("aym_notice","https://anayasa.gov.tr/tr/haberler/norm-denetimi-basin-duyurulari/hukmun-aciklanmasinin-geri-birakilmasi-hagb-kurumunu-duzenleyen-kurala-iliskin-iptal-davasi-ve-itiraz-basvurusu-hakkinda-karar/",None)]
+          hosts={urllib.parse.urlsplit(x[1]).hostname for x in NEW}
+          def allowed(u):
+              p=urllib.parse.urlsplit(u);return p.scheme=="https" and p.hostname in hosts and not p.username and not p.password and p.port in (None,443)
+          class Redirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):
+                  if not allowed(newurl): raise ValueError("redirect outside allowlist")
+                  return super().redirect_request(req,fp,code,msg,headers,newurl)
+          class Plain(html.parser.HTMLParser):
+              def __init__(self): super().__init__(convert_charrefs=True);self.parts=[];self.hidden=0
+              def handle_starttag(self,t,a):
+                  if t in ("script","style"): self.hidden+=1
+                  if t in ("p","div","br","tr","li","h1","h2","h3"): self.parts.append("\n")
+              def handle_endtag(self,t):
+                  if t in ("script","style"):self.hidden=max(0,self.hidden-1)
+              def handle_data(self,d):
+                  if not self.hidden:self.parts.append(d)
+          (ROOT/"new-raw").mkdir();(ROOT/"new-derived").mkdir()
+          def fetch(row):
+              k,url,n=row; rec={"id":k,"url":url,"expected_number":n,"identity":"UNVERIFIED","promotion_allowed":False}
+              try:
+                  check(allowed(url),"URL")
+                  with urllib.request.build_opener(Redirect()).open(urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0","Accept-Encoding":"identity"}),timeout=15) as resp:
+                      check(allowed(resp.url),"final URL")
+                      b=resp.read(16*1024*1024+1);check(0<len(b)<=16*1024*1024,"size")
+                      rec.update(http=resp.status,final_url=resp.url,bytes=len(b),sha256=sha(b),last_modified=resp.headers.get("Last-Modified"),retrieved_utc=datetime.datetime.now(datetime.timezone.utc).isoformat())
+                  if b.startswith(b"%PDF-"):
+                      p=ROOT/"new-raw"/(k+".pdf");p.write_bytes(b)
+                      t=subprocess.check_output(["pdftotext","-layout",str(p),"-"],timeout=40).decode("utf-8")
+                      rec["format"]="PDF";m=re.search(r"Kanun\s+Numaras[ıi]\s*:?\s*(\d+)",t[:8000],re.I)
+                      rec["observed_number"]=int(m.group(1)) if m else None
+                      rec["identity"]="HEADER_MATCH" if n and rec["observed_number"]==n else "UNVERIFIED"
+                  elif b.lstrip().startswith(b"<"):
+                      p=ROOT/"new-raw"/(k+".html");p.write_bytes(b)
+                      parser=Plain();parser.feed(b.decode("utf-8",errors="replace"));t="".join(parser.parts);rec["format"]="HTML"
+                  else: rec["status"]="UNKNOWN_FORMAT";return rec
+                  (ROOT/"new-derived"/(k+".txt")).write_text(t,encoding="utf-8")
+                  rec.update(raw_file=str(p.relative_to(ROOT)),text_chars=len(t),text_sha256=sha(t.encode()),article_candidates=len(list(ARTICLE.finditer(t))),status="CAPTURED_REVIEW_REQUIRED")
+                  if k.startswith("aym") or k.startswith("rg"):
+                      rec["decision_numbers_present"]=[x for x in ("2022/120","2023/107","2024/98","2025/149") if x in t]
+                  return rec
+              except Exception as e:rec.update(status="FAILED",error=str(e)[:300]);return rec
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:new=list(ex.map(fetch,NEW))
+          db=sqlite3.connect(ROOT/"hierarchy-candidate.sqlite")
+          db.executescript("CREATE TABLE article(id TEXT,source TEXT,record TEXT);CREATE TABLE node(id TEXT,parent TEXT,source TEXT,record TEXT);CREATE TABLE annotation(source TEXT,start INTEGER,end INTEGER,kind TEXT);CREATE TABLE source(id TEXT PRIMARY KEY,record TEXT);CREATE TABLE amendment(id INTEGER PRIMARY KEY,record TEXT);")
+          for k,(rs,ns,sp,issues,limit,masked) in parsed.items():
+              db.executemany("INSERT INTO article VALUES(?,?,?)",[(r["id"],k,json.dumps(r,ensure_ascii=False)) for r in rs])
+              db.executemany("INSERT INTO node VALUES(?,?,?,?)",[(r["id"],r["parent"],k,json.dumps(r,ensure_ascii=False)) for r in ns])
+              db.executemany("INSERT INTO annotation VALUES(?,?,?,?)",[(k,*r) for r in sp]+[(k,limit,len(texts[k]),"ANNEX_REVIEW")])
+          for r in new:db.execute("INSERT INTO source VALUES(?,?)",(r["id"],json.dumps(r,ensure_ascii=False)))
+          for r in amendments:db.execute("INSERT INTO amendment VALUES(?,?)",(r["amending_article"],json.dumps(r,ensure_ascii=False)))
+          db.commit(); integrity=db.execute("PRAGMA integrity_check").fetchone()[0];db.close()
+          test("SQLite_integrity",integrity=="ok")
+          stats={}
+          for k,(rs,ns,sp,issues,limit,masked) in parsed.items():
+              nums=[r["number"] for r in rs if r["kind"]=="normal"]
+              end=345 if k=="m5237" else 335 if k=="m5271" else 0
+              stats[k]={"articles":len(rs),"node_counts":{kind:sum(n["kind"]==kind for n in ns) for kind in ("paragraph","clause","subclause")},"notes":len(sp),"annex_offset":limit,"missing_numeric_candidates":[i for i in range(1,end+1) if str(i) not in nums],"duplicate_article_ids":sorted({r["id"] for r in rs if sum(x["id"]==r["id"] for x in rs)>1}),"ambiguous_numeric_markers":len(issues)}
+          out={"status":"CANDIDATE_HIERARCHY_ONLY","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","promotion_allowed":False,"official_legal_source":"NOT_VERIFIED","production":"NO-GO","license_release":"NO-GO","physical_uat":"NOT_RUN","stats":stats,"checks":checks,"amendments":amendments,"new_sources":new,"limitations":["footnote boundary heuristic; possible unmatched annotations","article headings and trailing next title require layout-aware review","marker hierarchy not certified","short phrase match not complete change or currentness proof","no full AYM temporal acceptance"]}
+          (ROOT/"result.json").write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8")
+          print("TUR045_RESULT",json.dumps(out,ensure_ascii=False))
+          PY
+          python3 tur045.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR045-Hierarchy-Evidence-NOT-RELEASE
+          path: tur045-evidence/
+          if-no-files-found: error
