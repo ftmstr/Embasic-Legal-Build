@@ -1,0 +1,136 @@
+name: TUR044 official legal source acquisition audit (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur044-legal-source-audit.yml']
+permissions:
+  contents: read
+jobs:
+  legal-source-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Capture official sources and build quarantined SQLite candidate index
+        shell: bash
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          cat > tur044.py <<'PY'
+          import concurrent.futures, datetime as dt, hashlib, html.parser, json, pathlib, re, sqlite3, subprocess, urllib.request, urllib.parse
+          ROOT=pathlib.Path("tur044-evidence"); ROOT.mkdir()
+          RAW=ROOT/"raw"; RAW.mkdir()
+          URLS=json.loads(r'''[["u01","https://mevzuat.adalet.gov.tr/mevzuat/103228/",5237],["u02","https://mevzuat.adalet.gov.tr/mevzuat/102946/",5271],["u03","https://mevzuat.adalet.gov.tr/mevzuat/112987/",null],["u04","https://mevzuat.adalet.gov.tr/mevzuat/103106/",null],["u05","https://mevzuat.adalet.gov.tr/mevzuat/103126?query=6136",6136],["u06","https://mevzuat.adalet.gov.tr/mevzuat/102918/",2918],["u07","https://mevzuat.adalet.gov.tr/mevzuat/104573/",2559],["u08","https://mevzuat.adalet.gov.tr/mevzuat/103320/",null],["u09","https://mevzuat.adalet.gov.tr/mevzuat/103904?query=%C3%87ocuk%20Koruma%20Kanunu",5395],["u10","https://mevzuat.adalet.gov.tr/mevzuat/103643?query=2863",2863],["u11","https://mevzuat.adalet.gov.tr/mevzuat/102944?query=5275",5275],["u12","https://mevzuat.adalet.gov.tr/mevzuat/103798",null],["u13","https://mevzuat.adalet.gov.tr/mevzuat/102981/",null],["u14","https://www.mevzuat.gov.tr/mevzuat?MevzuatNo=6114&MevzuatTur=1&MevzuatTertip=5",6114],["u15","https://www.mevzuat.gov.tr/MevzuatMetin/1.3.1632.pdf",1632],["m5237","https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5237.pdf",5237],["m5271","https://www.mevzuat.gov.tr/MevzuatMetin/1.5.5271.pdf",5271],["a5237","https://alternatifcozumler.adalet.gov.tr/Resimler/Mevzuat/TCK%205237.pdf",5237],["a5271","https://alternatifcozumler.adalet.gov.tr/Resimler/Mevzuat/CMK%205271.pdf",5271],["tb7571","https://cdn.tbmm.gov.tr/KKBSPublicFile/D28/Y3/KanunMetni/5189159c-4dec-44bf-87e0-9b23a810c791.htm",7571],["rg7571","https://www.resmigazete.gov.tr/eskiler/2025/12/20251225-33.htm",7571],["aym149","https://normkararlarbilgibankasi.anayasa.gov.tr/Dosyalar/Kararlar/KararPDF/2025-149-nrm.pdf",null],["aym107","https://normkararlarbilgibankasi.anayasa.gov.tr/Dosyalar/Kararlar/KararPDF/2023-107-nrm.pdf",null]]''')
+          HOSTS={urllib.parse.urlsplit(x[1]).hostname for x in URLS}
+          MAX=16*1024*1024
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def allowed(u):
+              p=urllib.parse.urlsplit(u)
+              return p.scheme=="https" and p.hostname in HOSTS and not p.username and not p.password and p.port in (None,443)
+          class Redirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):
+                  if not allowed(newurl): raise ValueError("redirect outside HTTPS allowlist")
+                  return super().redirect_request(req,fp,code,msg,headers,newurl)
+          class Plain(html.parser.HTMLParser):
+              def __init__(self):
+                  super().__init__(convert_charrefs=True); self.parts=[]; self.hidden=0
+              def handle_starttag(self,tag,attrs):
+                  if tag in ("script","style"): self.hidden+=1
+                  if tag in ("p","div","br","tr","li","h1","h2","h3"): self.parts.append("\n")
+              def handle_endtag(self,tag):
+                  if tag in ("script","style"): self.hidden=max(0,self.hidden-1)
+                  if tag in ("p","div","tr","li"): self.parts.append("\n")
+              def handle_data(self,data):
+                  if not self.hidden: self.parts.append(data)
+          ARTICLE=re.compile(r"(?im)^[ \t]*(?:(Ek|Geçici|Mükerrer)\s+)?Madde\s+(\d+(?:\s*/\s*[A-ZÇĞİÖŞÜ]+)?)\s*[-–—]")
+          def structure(text):
+              # candidate boundaries only; footnotes, cross-page continuations and amendment tables require review.
+              out=[]
+              for m in ARTICLE.finditer(text):
+                  out.append({"kind":(m.group(1) or "normal").lower(),"number":re.sub(r"\s+","",m.group(2)),"offset":m.start(),"page":text.count("\f",0,m.start())+1})
+              return out
+          def fetch(row):
+              key,url,expected=row
+              rec={"id":key,"url":url,"expected_number":expected,"identity":"UNVERIFIED","completeness":"NOT_VERIFIED","currentness":"NOT_VERIFIED","promotion_allowed":False}
+              try:
+                  if not allowed(url): raise ValueError("not allowed")
+                  op=urllib.request.build_opener(Redirect())
+                  with op.open(urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 (compatible; EmbasicLegalAudit/1.0)","Accept-Encoding":"identity"}),timeout=12) as res:
+                      if not allowed(res.url): raise ValueError("final url not allowed")
+                      b=res.read(MAX+1)
+                      if len(b)>MAX or not b: raise ValueError("empty or oversized")
+                      rec.update(http=res.status,final_url=res.url,bytes=len(b),sha256=sha(b),content_type=res.headers.get("Content-Type"),etag=res.headers.get("ETag"),last_modified=res.headers.get("Last-Modified"),retrieved_utc=dt.datetime.now(dt.timezone.utc).isoformat())
+                  if b.startswith(b"%PDF-"):
+                      suffix=".pdf"; raw=RAW/(key+suffix); raw.write_bytes(b)
+                      proc=subprocess.run(["pdftotext","-layout",str(raw),"-"],capture_output=True,timeout=30,check=True)
+                      text=proc.stdout.decode("utf-8","strict"); rec["format"]="PDF"
+                  elif b.lstrip().startswith(b"<") or "html" in (rec["content_type"] or "").lower():
+                      suffix=".html"; raw=RAW/(key+suffix); raw.write_bytes(b)
+                      encoding=re.search(r"charset\s*=\s*['\"]?([\w-]+)",rec["content_type"] or "",re.I)
+                      if not encoding: encoding=re.search(r"charset\s*=\s*['\"]?([\w-]+)",b[:8192].decode("ascii","ignore"),re.I)
+                      parser=Plain(); parser.feed(b.decode(encoding.group(1) if encoding else "utf-8","strict")); text="".join(parser.parts); rec["format"]="HTML"
+                  else:
+                      rec["status"]="UNRECOGNIZED_FORMAT"; return rec,[]
+                  rec["raw_file"]="raw/"+raw.name
+                  text=text.replace("\u00a0"," ")
+                  heads=structure(text)
+                  rec["text_sha256"]=sha(text.encode("utf-8")); rec["text_chars"]=len(text); rec["article_candidates"]=len(heads)
+                  rec["observed_number"]=None
+                  match=re.search(r"Kanun\s+Numaras[ıi]\s*:?\s*(\d{3,5})",text[:6000],re.I)
+                  if match:
+                      rec["observed_number"]=int(match.group(1))
+                      rec["identity"]="HEADER_MATCH" if expected==rec["observed_number"] else ("HEADER_DISCOVERED_REVIEW" if expected is None else "HEADER_MISMATCH")
+                  rec["status"]="TEXT_CANDIDATE" if heads else "NO_ARTICLE_TEXT"
+                  if key.startswith("aym"):
+                      rec["decision_marker"]=bool(re.search(r"Karar\s+Say[ıi]s[ıi]\s*:",text[:6000],re.I))
+                  if key in ("tb7571","rg7571"):
+                      rec["amendment_markers"]={str(i):bool(re.search(r"(?im)^\s*MADDE\s+"+str(i)+r"\s*[-–—]",text)) for i in list(range(14,27))+[39]}
+                  if expected in (5237,5271):
+                      normal=[h["number"] for h in heads if h["kind"]=="normal"]
+                      end=345 if expected==5237 else 335
+                      rec["missing_numeric_candidates"]=[i for i in range(1,end+1) if str(i) not in normal]
+                      rec["duplicate_candidates"]=sorted({n for n in normal if normal.count(n)>1})
+                      rec["mentions_7571"]="7571" in text
+                      rec["aym_marker_count"]=len(re.findall(r"Anayasa Mahkemesinin|Anayasa Mahkemesi’nin",text,re.I))
+                      rec["target_markers"]={n:n in normal for n in (["32","57","75","89","155","170","220","223"] if expected==5237 else ["128/A","250","253","280"])}
+                  # Store offsets and labels, not a certified consolidated law.
+                  records=[]
+                  if rec["identity"] in ("HEADER_MATCH","HEADER_DISCOVERED_REVIEW"):
+                      for i,h in enumerate(heads):
+                          end=heads[i+1]["offset"] if i+1<len(heads) else len(text)
+                          segment=text[h["offset"]:end]
+                          records.append(dict(h,sha256=sha(segment.encode()),paragraph_candidates=len(re.findall(r"(?m)^\s*\(\d+\)",segment)),clause_candidates=len(re.findall(r"(?m)^\s*[a-zçğıöşü]\)",segment))))
+                  return rec,records
+              except Exception as e:
+                  rec.update(status="ACCESS_OR_PARSE_FAILED",error=type(e).__name__+": "+str(e)[:350]); return rec,[]
+          def main():
+              with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool: results=list(pool.map(fetch,URLS))
+              db=sqlite3.connect(ROOT/"candidate-index.sqlite")
+              db.executescript("CREATE TABLE source(id TEXT PRIMARY KEY,record TEXT NOT NULL);CREATE TABLE article_candidate(source_id TEXT,ordinal INTEGER,record TEXT NOT NULL,PRIMARY KEY(source_id,ordinal));CREATE TABLE policy(key TEXT PRIMARY KEY,value TEXT NOT NULL);")
+              for r,items in results:
+                  db.execute("INSERT INTO source VALUES(?,?)",(r["id"],json.dumps(r,ensure_ascii=False)))
+                  db.executemany("INSERT INTO article_candidate VALUES(?,?,?)",[(r["id"],i,json.dumps(v,ensure_ascii=False)) for i,v in enumerate(items)])
+              policy={"mode":"AUDIT_ONLY","monthly_check":"calendar_month_review_due","automatic_promotion":"DISABLED","official_legal_source":"NOT_VERIFIED","production":"NO-GO","require_before_promotion":["identity","full_text_and_structure_review","effective_dates_and_transition_rules","7571_crosscheck","AYM_original_decisions","independent_review"]}
+              db.executemany("INSERT INTO policy VALUES(?,?)",[(k,json.dumps(v)) for k,v in policy.items()]); db.commit()
+              integrity=db.execute("PRAGMA integrity_check").fetchone()[0]
+              counts=db.execute("SELECT count(*) FROM article_candidate").fetchone()[0]
+              db.close()
+              assert integrity=="ok" and len(results)==len(URLS)
+              # calendar rule: a check is due if no prior date or a new local calendar month.
+              def due(last,today): return last is None or (last.year,last.month)<(today.year,today.month)
+              assert due(None,dt.date(2026,11,25)) and not due(dt.date(2026,11,1),dt.date(2026,11,25)) and due(dt.date(2026,12,31),dt.date(2027,1,1))
+              sample=structure("Madde 1 – (1) Test\n\fMadde 128/A- (1) Test\nGeçici Madde 8 – Test")
+              assert [(x["number"],x["page"]) for x in sample]==[("1",1),("128/A",2),("8",2)]
+              out={"status":"AUDIT_CAPTURE_COMPLETED_NOT_LEGAL_ACCEPTANCE","source_count":len(results),"user_sources":15,"sources":[r for r,_ in results],"candidate_count":counts,"sqlite_integrity":integrity,"policy":policy,"synthetic_checks":{"monthly_due":3,"article_boundary_page":3},"physical_uat":"NOT_RUN","license_release":"NO-GO","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f"}
+              (ROOT/"result.json").write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8")
+              print("TUR044_RESULT",json.dumps(out,ensure_ascii=False))
+          if __name__=="__main__": main()
+          PY
+          python3 tur044.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR044-Legal-Source-Audit-NOT-RELEASE
+          path: tur044-evidence/
+          if-no-files-found: error
