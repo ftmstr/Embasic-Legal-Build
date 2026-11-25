@@ -1,0 +1,141 @@
+name: TUR049 hash-bound reader and selected source boundary (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur049-reader.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  reader-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15033196506'
+          run-id: '45636423564'
+          github-token: ${{ github.token }}
+          path: prior48
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: prior47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Build selected projection and test standalone CLI
+        shell: bash
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          cat > tur049.py <<'PY'
+          import pathlib,sqlite3,hashlib,json,shutil,sys,subprocess,tempfile
+          sys.path.insert(0,str(pathlib.Path("tools").resolve()))
+          import audit_candidate_reader as reader
+          R=pathlib.Path("tur049-evidence");R.mkdir()
+          def sha(b):return hashlib.sha256(b).hexdigest()
+          def require(ok,msg):
+              if not ok:raise RuntimeError(msg)
+          def pin(p,h):
+              b=p.read_bytes();require(sha(b)==h,str(p));return b
+          def root(name):return next(pathlib.Path(name).rglob("result.json")).parent
+          a,b,c=root("prior48"),root("prior47"),root("prior45")
+          pin(a/"result.json","ba393cc7e10fdc091b6f03aed3e0293f75686f2dab5c7c16b3630b1af7162c97")
+          base=a/"reader-candidate.sqlite"
+          pin(base,"410c0173a2c0a1ea9e1b743bce57a6efe45a21f87105beb8005313b3a113078c")
+          review=pin(a/"review-only.json","fe586ceb946df3ecabf7000029f14f704cbbc78ff16904e0bc88c33a4278e747")
+          (R/"review-only.json").write_bytes(review)
+          rv=json.loads(review)
+          source=b/"grammar-candidate.sqlite"
+          pin(source,"3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e")
+          pdf=c/"new-raw/6114.pdf"
+          pdfhash="e14aab140c826c41346eb40f603fde75cc90c6a733b75a556f3c3f69f536cd4b"
+          pin(pdf,pdfhash)
+          s=sqlite3.connect(source.resolve().as_uri()+"?mode=ro",uri=True);s.row_factory=sqlite3.Row;s.execute("PRAGMA query_only=ON")
+          def line(l,p,o):
+              return dict(s.execute("SELECT * FROM line WHERE law=? AND page=? AND ordinal=?",(l,p,o)).fetchone())
+          checks=[]
+          def test(n,ok):
+              require(ok,n);checks.append({"case":n,"pass":True})
+          aid="6114:normal:21"
+          anchors=[line(6114,14,o) for o in range(2,6)]
+          expected=["Yürütme","MADDE 21 – (1) Bu Kanun hükümlerini Bakanlar Kurulu yürütür.","(1) SAYILI CETVEL","(Mülga: 11/10/2011-KHK-666/1 md.)"]
+          test("6114_exact_coordinate_boundary",[x["raw"] for x in anchors]==expected and all(x["bbox"] for x in anchors))
+          page=subprocess.check_output(["pdftotext","-f","14","-l","14","-layout",str(pdf),"-"],timeout=30).decode("utf-8")
+          flat=" ".join(page.split())
+          test("6114_pdf_page_sequence",(" ".join(expected)) in flat)
+          members=[tuple(x) for x in s.execute("SELECT law,page,ordinal,body FROM membership WHERE article_id=? ORDER BY page,ordinal",(aid,))]
+          test("6114_only_one_body_outside_schedule",len(members)==3 and members[0]==(6114,14,3,"(1) Bu Kanun hükümlerini Bakanlar Kurulu yürütür.") and [x[0] for x in s.execute("SELECT ordinal FROM source_zone WHERE law=6114 AND page=14 ORDER BY ordinal")]==[4,5])
+          dst=R/"reader-candidate.sqlite";shutil.copyfile(base,dst)
+          d=sqlite3.connect(dst);d.execute("PRAGMA foreign_keys=ON")
+          d.execute("ATTACH DATABASE ? AS old",(base.resolve().as_uri()+"?mode=ro",))
+          require(d.execute("SELECT status FROM article_index WHERE id=?",(aid,)).fetchone()==("WITHHELD_REVIEW",),"target prior")
+          d.execute("UPDATE article_index SET status='CANDIDATE_UNVERIFIED',reason='SOURCE_BOUNDARY_REVIEW_ONLY' WHERE id=?",(aid,))
+          d.execute("INSERT INTO reader_line VALUES(?,?,?,?,?)",(aid,*members[0]))
+          d.execute("INSERT INTO metadata VALUES('reader_revision','TUR049')")
+          d.execute("CREATE TABLE reader_annotation(article_id TEXT REFERENCES article_index(id),kind TEXT CHECK(kind IN ('TITLE','FOOTNOTE')),page INTEGER,ordinal INTEGER,raw TEXT,source_text_sha256 TEXT,PRIMARY KEY(article_id,page,ordinal))")
+          annotation_specs=[("5237:normal:1","TITLE",5237,1,16), (aid,"TITLE",6114,14,2),("5271:normal:253","FOOTNOTE",5271,101,41),("5271:normal:253","FOOTNOTE",5271,101,42)]
+          annotations=[]
+          for id,k,l,p,o in annotation_specs:
+              x=line(l,p,o)
+              require(x["classification"]==("HEADING_CANDIDATE" if k=="TITLE" else "FOOTNOTE_CANDIDATE"),"annotation class")
+              rec={"article_id":id,"kind":k,"law":l,"page":p,"ordinal":o,"raw":x["raw"],"source_text_sha256":sha(x["raw"].encode()),"bbox":json.loads(x["bbox"])}
+              annotations.append(rec)
+              d.execute("INSERT INTO reader_annotation VALUES(?,?,?,?,?,?)",(id,k,p,o,x["raw"],rec["source_text_sha256"]))
+          sup=line(5271,101,23)
+          test("CMK_253_note_102_anchor",any(x["text"].strip()=="102" and x["flags"]&1 and x["size"]<=9 for x in json.loads(sup["spans"])) and "7593" in annotations[2]["raw"] and "adli süreçteki" in annotations[3]["raw"])
+          test("only_target_status_changes",d.execute("SELECT id FROM article_index WHERE id!='6114:normal:21' EXCEPT SELECT id FROM old.article_index WHERE id!='6114:normal:21'").fetchall()==[] and d.execute("SELECT * FROM article_index WHERE id!=? EXCEPT SELECT * FROM old.article_index WHERE id!=?",(aid,aid)).fetchall()==[] and d.execute("SELECT * FROM old.article_index WHERE id!=? EXCEPT SELECT * FROM article_index WHERE id!=?",(aid,aid)).fetchall()==[])
+          test("only_one_body_added",d.execute("SELECT * FROM reader_line EXCEPT SELECT * FROM old.reader_line").fetchall()==[(aid,*members[0])] and not d.execute("SELECT * FROM old.reader_line EXCEPT SELECT * FROM reader_line").fetchall())
+          test("all_remaining_38_held",d.execute("SELECT count(*) FROM article_index WHERE status='WITHHELD_REVIEW'").fetchone()[0]==38 and d.execute("SELECT count(*) FROM candidate_text WHERE id IN (SELECT id FROM article_index WHERE status='WITHHELD_REVIEW')").fetchone()[0]==0)
+          test("review_and_temporal_preserved",len(rv["overlay_review"])==119 and len(rv["list_review"])==19 and sum(len(x["members"]) for x in rv["list_review"])==90 and d.execute("SELECT count(*) FROM temporal_decision").fetchone()[0]==11 and not d.execute("SELECT * FROM temporal_decision EXCEPT SELECT * FROM old.temporal_decision").fetchall() and not d.execute("SELECT * FROM old.temporal_decision EXCEPT SELECT * FROM temporal_decision").fetchall() and all(not json.loads(x[0])["automatic_effect"] for x in d.execute("SELECT record FROM temporal_decision")))
+          test("annotations_never_in_reader_body",not d.execute("SELECT r.article_id FROM reader_line r JOIN reader_annotation a ON a.article_id=r.article_id AND a.page=r.page AND a.ordinal=r.ordinal").fetchall())
+          d.commit()
+          test("sqlite_integrity",d.execute("PRAGMA integrity_check").fetchone()==("ok",) and not d.execute("PRAGMA foreign_key_check").fetchall())
+          counts={x:d.execute("SELECT count(*) FROM "+x).fetchone()[0] for x in ("article_index","reader_line","reader_annotation","temporal_decision")}
+          held=d.execute("SELECT id FROM article_index WHERE status='WITHHELD_REVIEW' ORDER BY id LIMIT 1").fetchone()[0]
+          d.close();s.close()
+          digest=sha(dst.read_bytes());cli=pathlib.Path("tools/audit_candidate_reader.py")
+          def call(path,h,id):
+              return subprocess.run([sys.executable,str(cli),"--db",str(path),"--expected-sha256",h,"--article",id],capture_output=True,text=True,encoding="utf-8")
+          def denied(p,reason):
+              return p.returncode==65 and not p.stdout and json.loads(p.stderr)["reason"]==reason
+          p=call(dst,digest,aid);v=json.loads(p.stdout)
+          test("standalone_cli_reopened_article",p.returncode==0 and v["body"]==[{"page":14,"ordinal":3,"text":members[0][3]}] and [x["text"] for x in v["annotations"]]==["Yürütme"] and not v["promotion_allowed"])
+          p=call(dst,digest,"5237:normal:1")
+          test("standalone_cli_title",p.returncode==0 and json.loads(p.stdout)["annotations"][0]["text"]=="Ceza Kanununun amacı")
+          p=call(dst,digest,"5271:normal:253")
+          test("standalone_cli_note_separate",p.returncode==0 and len(json.loads(p.stdout)["annotations"])==2 and all(x["type"]=="FOOTNOTE" for x in json.loads(p.stdout)["annotations"]))
+          test("standalone_cli_unknown",denied(call(dst,digest,"9999:normal:999"),"UNKNOWN_ARTICLE"))
+          test("standalone_cli_withheld",denied(call(dst,digest,held),"WITHHELD_REVIEW"))
+          test("standalone_cli_wrong_hash",denied(call(dst,"0"*64,aid),"HASH_MISMATCH"))
+          with tempfile.TemporaryDirectory() as td:
+              copy=pathlib.Path(td)/"tampered.sqlite";copy.write_bytes(dst.read_bytes())
+              snap=reader.snapshot(copy,digest)
+              copy.write_bytes(copy.read_bytes()+b"x")
+              test("standalone_cli_tamper_rejected",denied(call(copy,digest,aid),"HASH_MISMATCH"))
+              test("snapshot_unchanged_after_path_replacement",reader.read_article(snap,aid)["body"]==v["body"])
+              def denied_write(q):
+                  try:snap.execute(q);return False
+                  except sqlite3.OperationalError as e:return "readonly" in str(e).lower() or "read-only" in str(e).lower()
+              test("snapshot_rejects_writes",all(denied_write(q) for q in ("DELETE FROM reader_line","CREATE TABLE nope(x)","UPDATE metadata SET value='true' WHERE key='promotion_allowed'")))
+              snap.close()
+          test("prior_and_new_files_unchanged",sha(dst.read_bytes())==digest and sha(base.read_bytes())=="410c0173a2c0a1ea9e1b743bce57a6efe45a21f87105beb8005313b3a113078c" and sha((R/"review-only.json").read_bytes())==sha(review))
+          out={"status":"TUR049_AUDIT_CANDIDATE_ONLY","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","promotion_allowed":False,"official_legal_source":"NOT_VERIFIED","production":"NO-GO","license_release":"NO-GO","physical_uat":"NOT_RUN","counts":counts,"candidate_articles":1470,"withheld_articles":38,"opened_article":aid,"checks":checks,"reader_sha256":digest,"cli_sha256":sha(cli.read_bytes()),"review_sha256":sha(review),"pdf_sha256":pdfhash,"source_anchors":[{"page":x["page"],"ordinal":x["ordinal"],"raw":x["raw"],"bbox":json.loads(x["bbox"])} for x in anchors],"annotations":annotations,"unknown_uyap":["112987","103106","103320","103798","102981"],"limitations":["caller-supplied expected hash must come from independent trusted evidence; not authorization","query_only protects supported connection, not malicious Python caller or OS","selected annotations only","source boundary review is not current law acceptance","no Windows product integration"]}
+          (R/"result.json").write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding="utf-8")
+          print("TUR049_RESULT",json.dumps(out,ensure_ascii=False))
+          PY
+          python3 tur049.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR049-Reader-Evidence-NOT-RELEASE
+          path: tur049-evidence/
+          if-no-files-found: error
