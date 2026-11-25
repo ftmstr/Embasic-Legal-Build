@@ -79,7 +79,7 @@ jobs:
           ck(d.execute("SELECT status FROM article_index WHERE id=?",(aid,)).fetchone()==("WITHHELD_REVIEW",),"m138 prior")
           ck(d.execute("SELECT status FROM article_index WHERE id=?",(hold,)).fetchone()==("CANDIDATE_UNVERIFIED",),"g27 prior")
           removed=d.execute("SELECT * FROM reader_line WHERE article_id=? ORDER BY page,ordinal",(hold,)).fetchall()
-          test("g27_preexisting_body_contains_new_leak",len(removed)==27 and [x[3] for x in removed[-3:]]==[34,35,36])
+          test("g27_preexisting_body_contains_new_leak",len(removed)==27 and [(x[2],x[3]) for x in removed]==[(98,o) for o in range(12,37)]+[(99,0),(99,1)] and [x[4] for x in removed[-2:]]==["ONÜÇÜNCÜ KISIM","Kaldırılan Hükümler, Yürürlük ve Yürütme"])
           d.execute("UPDATE article_index SET status='CANDIDATE_UNVERIFIED',reason='SOURCE_BOUNDARY_REVIEW_ONLY' WHERE id=?",(aid,))
           d.execute("UPDATE article_index SET status='WITHHELD_REVIEW',reason='NEW_UNNUMBERED_PROVISION_BOUNDARY_REVIEW' WHERE id=?",(hold,))
           d.execute("DELETE FROM reader_line WHERE article_id=?",(hold,))
