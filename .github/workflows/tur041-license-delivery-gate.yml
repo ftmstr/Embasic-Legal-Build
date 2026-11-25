@@ -1,0 +1,127 @@
+name: TUR041 audit-only license delivery gate (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur041-license-delivery-gate.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit-gate:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f
+          path: product-source
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14995227399'
+          run-id: '45555653182'
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Assemble document-only candidate and exercise refusal gate
+        shell: pwsh
+        run: |
+          @'
+          import hashlib, pathlib, subprocess, json, zipfile, io, re, warnings
+          warnings.filterwarnings("ignore", category=UserWarning, message="Duplicate name:.*")
+          root=pathlib.Path("tur041-evidence"); root.mkdir(exist_ok=True)
+          head="9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f"
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def blob(b): return hashlib.sha1(("blob "+str(len(b))+"\0").encode()+b).hexdigest()
+          def canonical(v): return (json.dumps(v,sort_keys=True,indent=2,ensure_ascii=True)+"\n").encode()
+          result={"audit_only":True,"production":"NO-GO","license_release":"NO-GO","physical_uat":"NOT_RUN","official_law":"NOT_VERIFIED","product_head":head,"tests":[]}
+          def check(condition,msg):
+              if not condition: raise ValueError(msg)
+          try:
+              old=list(pathlib.Path("previous").rglob("result.json"))
+              check(len(old)==1,"prior result count")
+              oldraw=old[0].read_bytes()
+              check(sha(oldraw)=="5cb90a8eff5671baf5f8f188640330b871ff2ba41b6ac9771b4ab2c52f2d3053","prior result identity")
+              prior=json.loads(oldraw)
+              check(prior["product_head"]==head and len(prior["documents"])==10,"prior scope")
+              stage=old[0].parent/"NOTICE-STAGING-NOT-RELEASE"
+              docs={}
+              for d in prior["documents"]:
+                  name=d["name"]; check(re.fullmatch(r"[A-Za-z0-9._-]+",name) is not None,"prior name")
+                  data=(stage/name).read_bytes()
+                  check(len(data)==d["bytes"] and sha(data)==d["sha256"],"input identity "+name)
+                  docs["licenses/"+name]=data
+              rtf=(old[0].parent/"sdk-license-original.rtf").read_bytes()
+              check(len(rtf)==246945 and sha(rtf)=="dd07eb178e00c6bba4148457fc00ff77cd4887eb521d504186fe59c9ec8bbe62","SDK RTF identity")
+              docs["licenses/SDK-LICENSE-CAPTURED-NOT-HISTORICALLY-BOUND.rtf"]=rtf
+              actual=subprocess.check_output(["git","-C","product-source","rev-parse","HEAD"],text=True).strip()
+              check(actual==head,"product checkout")
+              gpl=subprocess.check_output(["git","-C","product-source","cat-file","blob",head+":LICENSE"])
+              check(blob(gpl)=="f288702d2fa16d3cdf0035b15a9fcbc552cd88e7","product license blob")
+              docs["licenses/PRODUCT-GPL-3.0.txt"]=gpl
+              blockers=["SDK_EULA_HISTORICAL_BINDING","GPL_MICROSOFT_COMPATIBILITY","COPYRIGHT_HOLDER_AUTHORIZATION","LOGO_REDISTRIBUTION_RIGHTS","OFFICIAL_LEGAL_SOURCE","PHYSICAL_WINDOWS_UAT","DOWNSTREAM_TERMS_REVIEW","FINAL_PRODUCT_PACKAGE_APPROVAL"]
+              manifest={"schema":1,"purpose":"AUDIT_DOCUMENTS_ONLY_NOT_RELEASE","product_head":head,"prior_artifact":14995227399,"prior_result_sha256":sha(oldraw),"documents":{n:{"bytes":len(v),"sha256":sha(v)} for n,v in sorted(docs.items())},"unresolved":blockers,"release_allowed":False}
+              readme=b"AUDIT ONLY. No executable, installer, release or license grant. SDK RTF is captured current URL response, not historically bound. Product GPL text unchanged. All unresolved gates block distribution.\n"
+              expected=dict(docs,**{"MANIFEST.json":canonical(manifest),"README-NOT-RELEASE.txt":readme})
+              def archive(entries):
+                  out=io.BytesIO()
+                  with zipfile.ZipFile(out,"w",compression=zipfile.ZIP_DEFLATED) as z:
+                      for n,v in entries: z.writestr(n,v)
+                  return out.getvalue()
+              def gate(raw):
+                  try:
+                      with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                          names=z.namelist()
+                          check(len(names)==len(set(n.casefold() for n in names)),"duplicate or case collision")
+                          for n in names:
+                              check(re.fullmatch(r"(?:licenses/)?[A-Za-z0-9._-]+",n) is not None and all(s not in (".","..") for s in n.split("/")),"unsafe path")
+                          check(set(names)==set(expected),"unexpected or missing member")
+                          for i in z.infolist():
+                              check(i.file_size==len(expected[i.filename]),"size mismatch "+i.filename)
+                              check(z.read(i)==expected[i.filename],"content mismatch "+i.filename)
+                      return {"integrity":"PASS","release_allowed":False,"status":"DENY_UNRESOLVED_GATES","blockers":blockers}
+                  except Exception as e:
+                      return {"integrity":"FAIL","release_allowed":False,"status":"DENY_INVALID_DOCUMENT_PACKAGE","reason":str(e)}
+              baseline=list(expected.items())
+              raw=archive(baseline)
+              valid=gate(raw); check(valid["integrity"]=="PASS" and valid["release_allowed"] is False,"valid audit-only")
+              result["tests"].append({"case":"valid_document_only_candidate","expected":"DENY_UNRESOLVED_GATES","actual":valid["status"],"pass":True})
+              def reject(label,entries):
+                  v=gate(archive(entries))
+                  check(v["integrity"]=="FAIL" and v["release_allowed"] is False,label)
+                  result["tests"].append({"case":label,"expected":"DENY_INVALID_DOCUMENT_PACKAGE","actual":v["status"],"reason":v.get("reason"),"pass":True})
+              target="licenses/PRODUCT-GPL-3.0.txt"
+              reject("missing_product_gpl",[(n,v) for n,v in baseline if n!=target])
+              reject("missing_sdk_rtf",[(n,v) for n,v in baseline if not n.endswith(".rtf")])
+              reject("modified_notice",[(n,(bytes([v[0]^1])+v[1:]) if n.endswith("SQLITEPCLRAW-NOTICE.TXT") else v) for n,v in baseline])
+              reject("duplicate_member",baseline+[(target,docs[target])])
+              reject("case_collision",baseline+[(target.lower(),docs[target])])
+              reject("path_traversal",baseline+[("../outside.txt",b"x")])
+              reject("unexpected_executable",baseline+[("Embasic.Legal.exe",b"synthetic test marker")])
+              def tamper(label,change):
+                  m=json.loads(canonical(manifest)); change(m)
+                  reject(label,[(n,canonical(m) if n=="MANIFEST.json" else v) for n,v in baseline])
+              tamper("false_release_flag",lambda m:m.update(release_allowed=True))
+              tamper("removed_blockers",lambda m:m.update(unresolved=[]))
+              tamper("wrong_product_head",lambda m:m.update(product_head="0"*40))
+              tamper("rewritten_document_hash",lambda m:m["documents"][target].update(sha256="0"*64))
+              bad=gate(b"not a zip")
+              check(bad["integrity"]=="FAIL" and not bad["release_allowed"],"invalid zip")
+              result["tests"].append({"case":"invalid_zip","expected":"DENY_INVALID_DOCUMENT_PACKAGE","actual":bad["status"],"pass":True})
+              (root/"TUR041-DOCUMENTS-ONLY-NOT-RELEASE.zip").write_bytes(raw)
+              (root/"manifest.json").write_bytes(canonical(manifest))
+              result.update({"candidate_bytes":len(raw),"candidate_sha256":sha(raw),"document_count":len(docs),"product_license_blob":blob(gpl),"product_license_sha256":sha(gpl),"candidate_gate":valid,"tests_passed":len(result["tests"]),"status":"AUDIT_GATE_VERIFIED_RELEASE_DENIED"})
+          finally:
+              (root/"result.json").write_bytes(canonical(result))
+              print("TUR041_RESULT",json.dumps(result))
+          '@ | Set-Content -Encoding utf8 tur041.py
+          python tur041.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR041-License-Delivery-Gate-NOT-RELEASE
+          path: tur041-evidence/
+          if-no-files-found: error
