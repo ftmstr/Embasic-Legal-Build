@@ -1,0 +1,101 @@
+name: TUR054 pinned chapter boundary and revision safety (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur054-pinned-reader.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  pinned:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15057816038'
+          run-id: '45687953803'
+          github-token: ${{ github.token }}
+          path: prior49
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15056664563'
+          run-id: '45688754638'
+          github-token: ${{ github.token }}
+          path: prior50
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15058496001'
+          run-id: '45689770047'
+          github-token: ${{ github.token }}
+          path: prior51
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060085952'
+          run-id: '45693327586'
+          github-token: ${{ github.token }}
+          path: prior52
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060641088'
+          run-id: '45694684288'
+          github-token: ${{ github.token }}
+          path: prior53
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060707849'
+          run-id: '45696360940'
+          github-token: ${{ github.token }}
+          path: prior54
+      - name: Verify exact new snapshot and known historical chapter defect quarantine
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib,hashlib,json,subprocess,sys,sqlite3,tempfile,shutil
+          paths={f"TUR{i:03d}":next(pathlib.Path(f"prior{i}").rglob("reader-candidate.sqlite")) for i in range(49,55)}
+          r=pathlib.Path("tur054-pin-evidence");r.mkdir()
+          def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+          before={k:sha(p) for k,p in paths.items()}
+          checks=[]
+          def test(n,v):
+              if not v:raise RuntimeError(n)
+              checks.append({"case":n,"pass":True})
+          def call(rev,aid,generic=False,path=None):
+              p=path or paths[rev]
+              args=["tools/audit_candidate_reader.py","--db",str(p),"--expected-sha256",sha(p)] if generic else ["tools/audit_pinned_reader.py","--db",str(p),"--revision",rev]
+              return subprocess.run([sys.executable,*args,"--article",aid],capture_output=True,text=True,encoding="utf-8")
+          def denied(p,reason):return p.returncode==65 and not p.stdout and json.loads(p.stderr)["reason"]==reason
+          a49="2918:normal:49";g27="2918:geçici:27"
+          for rev in ("TUR049","TUR050","TUR051","TUR052","TUR053"):
+              test(rev+"_m49_quarantine_both_readers",all(denied(call(rev,a49,g),"REVISION_ARTICLE_QUARANTINED") for g in (False,True)))
+          expected=[(42,34),(42,35)]+[(43,o) for o in range(32)]
+          q=call("TUR054",a49);v=json.loads(q.stdout)
+          test("new_pin_exact_34_lines",q.returncode==0 and len(v["body"])==34 and [(x["page"],x["ordinal"]) for x in v["body"]]==expected and v["evidence"]["artifact"]==15060707849 and not v["promotion_allowed"])
+          test("generic_same_exact_body",(q:=call("TUR054",a49,True)).returncode==0 and json.loads(q.stdout)["body"]==v["body"])
+          test("m49_title_no_m48_note",[x["type"] for x in v["annotations"]]==["TITLE"] and v["annotations"][0]["text"]=="Taşıt kullanma sürelerine uyma zorunluluğu:")
+          q=call("TUR054","2918:normal:48");v48=json.loads(q.stdout)
+          test("note45_attached_to_m48",q.returncode==0 and [(x["page"],x["ordinal"]) for x in v48["annotations"] if x["type"]=="FOOTNOTE"]==[(42,36),(42,37)] and v48["annotations"][0]["text"].startswith("45 "))
+          test("g27_new_pin_exact_22",all((q:=call("TUR054",g27,g)).returncode==0 and [(x["page"],x["ordinal"]) for x in json.loads(q.stdout)["body"]]==[(98,o) for o in range(12,34)] for g in (False,True)))
+          test("g27_previous_safe_revisions_unchanged",all(call(rev,g27,g).returncode==0 for rev in ("TUR052","TUR053") for g in (False,True)))
+          test("old_g27_quarantine_preserved",all(denied(call(rev,g27,g),"REVISION_ARTICLE_QUARANTINED") for rev in ("TUR049","TUR050","TUR051") for g in (False,True)))
+          test("wrong_revision_hash_rejected",denied(call("TUR054",a49,path=paths["TUR053"]),"HASH_MISMATCH") and denied(call("TUR053",a49,path=paths["TUR054"]),"HASH_MISMATCH"))
+          with tempfile.TemporaryDirectory() as td:
+              p=pathlib.Path(td)/"spoof.sqlite";shutil.copyfile(paths["TUR050"],p)
+              db=sqlite3.connect(p);db.execute("UPDATE metadata SET value='TUR054' WHERE key='projection_revision'");db.commit();db.close()
+              test("old_metadata_spoof_with_self_hash_rejected",all(denied(call("TUR054",aid,True,path=p),"REVISION_ARTICLE_QUARANTINED") for aid in (a49,g27)))
+              p=pathlib.Path(td)/"tamper.sqlite";shutil.copyfile(paths["TUR054"],p)
+              db=sqlite3.connect(p);db.execute("UPDATE reader_line SET body='synthetic altered audit body' WHERE article_id=? AND page=42 AND ordinal=35",(a49,));db.commit();db.close()
+              test("new_metadata_same_but_modified_bytes_rejected",all(denied(call("TUR054",aid,True,path=p),"REVISION_ARTICLE_QUARANTINED") for aid in (a49,g27)) and denied(call("TUR054",a49,path=p),"HASH_MISMATCH"))
+          test("all_six_original_bytes_unchanged",before=={k:sha(p) for k,p in paths.items()})
+          out={"status":"PINNED_AUDIT_READER_ONLY","promotion_allowed":False,"production":"NO-GO","official_legal_source":"NOT_VERIFIED","physical_uat":"NOT_RUN","checks":checks,"input_hashes":before,"wrapper_sha256":sha(pathlib.Path("tools/audit_pinned_reader.py")),"generic_reader_sha256":sha(pathlib.Path("tools/audit_candidate_reader.py")),"limitations":["current reader only; direct SQLite or historical code possible","no general freshness or signature","no product integration"]}
+          (r/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8");print(json.dumps(out))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR054-Pinned-Reader-Evidence-NOT-RELEASE
+          path: tur054-pin-evidence/
+          if-no-files-found: error
