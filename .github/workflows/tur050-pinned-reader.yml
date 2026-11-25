@@ -1,0 +1,67 @@
+name: TUR050 pinned reader integration (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur050-pinned-reader.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  pinned-reader:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15057816038'
+          run-id: '45687953803'
+          github-token: ${{ github.token }}
+          path: prior49
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15056664563'
+          run-id: '45688754638'
+          github-token: ${{ github.token }}
+          path: prior50
+      - name: Test independent code pins against actual previous artifacts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib,hashlib,json,subprocess,sys,tempfile,sqlite3
+          p49=next(pathlib.Path("prior49").rglob("reader-candidate.sqlite"));p50=next(pathlib.Path("prior50").rglob("reader-candidate.sqlite"))
+          r=pathlib.Path("tur050-pin-evidence");r.mkdir()
+          checks=[]
+          def test(n,v):
+              if not v:raise RuntimeError(n)
+              checks.append({"case":n,"pass":True})
+          def call(db,rev,aid,*extra):
+              return subprocess.run([sys.executable,"tools/audit_pinned_reader.py","--db",str(db),"--revision",rev,"--article",aid,*extra],capture_output=True,text=True)
+          def denied(p,reason):
+              return p.returncode==65 and not p.stdout and json.loads(p.stderr)["reason"]==reason
+          def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+          test("pinned_pvsk_9", (q:=call(p50,"TUR050","2559:normal:9")).returncode==0 and len(json.loads(q.stdout)["body"])==38 and json.loads(q.stdout)["evidence"]["artifact"]==15056664563 and not json.loads(q.stdout)["promotion_allowed"])
+          test("pinned_pvsk_16_with_annotations",(q:=call(p50,"TUR050","2559:normal:16")).returncode==0 and len(json.loads(q.stdout)["body"])==45 and len(json.loads(q.stdout)["annotations"])==3)
+          test("prior_revision_still_explicitly_selectable",call(p49,"TUR049","6114:normal:21").returncode==0)
+          test("prior_revision_does_not_open_pvsk",denied(call(p49,"TUR049","2559:normal:9"),"WITHHELD_REVIEW"))
+          test("old_bytes_cannot_claim_new_revision",denied(call(p49,"TUR050","2559:normal:9"),"HASH_MISMATCH"))
+          test("new_bytes_cannot_claim_old_revision",denied(call(p50,"TUR049","2559:normal:9"),"HASH_MISMATCH"))
+          test("caller_hash_override_not_accepted",call(p50,"TUR050","2559:normal:9","--expected-sha256",sha(p50)).returncode==2)
+          test("unregistered_revision_rejected",call(p50,"TUR051","2559:normal:9").returncode==2)
+          test("remaining_withheld_still_denied",denied(call(p50,"TUR050","2918:normal:138"),"WITHHELD_REVIEW"))
+          with tempfile.TemporaryDirectory() as td:
+              modified=pathlib.Path(td)/"modified.sqlite";modified.write_bytes(p50.read_bytes())
+              db=sqlite3.connect(modified);db.execute("UPDATE reader_line SET body='synthetic altered audit text' WHERE law=2559 AND page=7 AND ordinal=13");db.commit();db.close()
+              test("modified_valid_sqlite_with_own_hash_still_denied",sha(modified)!=sha(p50) and denied(call(modified,"TUR050","2559:normal:9"),"HASH_MISMATCH"))
+          out={"status":"PINNED_AUDIT_READER_ONLY","promotion_allowed":False,"production":"NO-GO","official_legal_source":"NOT_VERIFIED","physical_uat":"NOT_RUN","checks":checks,"db_sha256":sha(p50),"prior_db_sha256":sha(p49),"wrapper_sha256":sha(pathlib.Path("tools/audit_pinned_reader.py")),"limitations":["trusted exact Git source required; no signature or protected production authority","explicit historical revision permitted; no freshness guarantee","not Windows product integration"]}
+          (r/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8")
+          print(json.dumps(out))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR050-Pinned-Reader-Evidence-NOT-RELEASE
+          path: tur050-pin-evidence/
+          if-no-files-found: error
