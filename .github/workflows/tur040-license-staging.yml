@@ -1,0 +1,142 @@
+name: TUR040 SDK license capture and notice staging (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur040-license-staging.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  license-staging:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14934130303'
+          run-id: '45419340832'
+          github-token: ${{ github.token }}
+          path: tur035
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14965615141'
+          run-id: '45487363874'
+          github-token: ${{ github.token }}
+          path: tur038
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14995247471'
+          run-id: '45555292748'
+          github-token: ${{ github.token }}
+          path: tur039
+      - name: Stage existing notices and capture exact SDK license URL response
+        shell: pwsh
+        run: |
+          @'
+          import hashlib, pathlib, urllib.request, urllib.parse, json, zipfile, io, re, xml.etree.ElementTree as ET, datetime, shutil
+          root=pathlib.Path("tur040-evidence"); root.mkdir(exist_ok=True)
+          stage=root/"NOTICE-STAGING-NOT-RELEASE"; stage.mkdir()
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          specs=[
+            ("tur035","d7a68596ab69b06f51ca278a6545148e4269a9381c26d597c13df5d88e08cf5b","NETCORE-RUNTIME-LICENSE.TXT"),
+            ("tur035","6d15e10a101c6bfff2ab4429ed061bf76c456fc4b23ad6b03e0d0f8377148a21","NETCORE-RUNTIME-THIRD-PARTY-NOTICES.TXT"),
+            ("tur035","a89886665765362eb77e0f8e26602c924520041d1711b2eedc136434fe4d01ab","WPF-RUNTIME-LICENSE.TXT"),
+            ("tur035","99464c3a88df7b708ce59e462cdcb85f72dfc9b1335b4fcc68be56131b634b95","SQLITE-LICENSE.TXT"),
+            ("tur038","d23dba2fee20c6b59d8f7088ee9ed372459c952a319b7ca90f3eec370cc76eb9","WPF-THIRD-PARTY-NOTICES.TXT"),
+            ("tur038","c50e462f7d9d966b50f4a9874ccfb896b83455ac0d2e7f30aaf4bb7ad5fbd12a","DOTNET-LIBRARY-LICENSE-MSFT.TXT"),
+            ("tur038","2dc8f8c5a39401e928b5784ab564eb8b3ceb99ead3df8f260e0cab7e0bbecc7a","DOTNET-INSTALLER-THIRD-PARTY-NOTICES.TXT"),
+            ("tur038","ae48df11a335dc1a615f4f938b69cba73bcf4485c4f97af49b38efb0f216353b","EFCORE-LICENSE.TXT"),
+            ("tur038","cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30","SQLITEPCLRAW-LICENSE.TXT"),
+            ("tur038","5a1ab2f670f86dd2f8d42e40a8459cc278ca6d5225a7e2a5fa3ea0184396a6d9","SQLITEPCLRAW-NOTICE.TXT")]
+          result={"audit_only":True,"production":"NO-GO","license_release":"NO-GO","physical_uat":"NOT_RUN","official_law":"NOT_VERIFIED","product_head":"9f9af1fb33fb0f69c6d3f1f408e467a856e4ca0f","documents":[],"sdk_license":{"status":"NOT_VERIFIED","historical_version_binding":"NOT_VERIFIED","redirects":[]}}
+          def trusted(url):
+              p=urllib.parse.urlsplit(url)
+              h=p.hostname or ""
+              return p.scheme=="https" and not p.username and not p.password and (h=="aka.ms" or h=="microsoft.com" or h.endswith(".microsoft.com") or h=="windows.com" or h.endswith(".windows.com"))
+          class Redirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):
+                  result["sdk_license"]["redirects"].append({"status":code,"from":req.full_url,"to":newurl})
+                  if not trusted(newurl): raise ValueError("untrusted redirect")
+                  return super().redirect_request(req,fp,code,msg,headers,newurl)
+          try:
+              for folder,expected,name in specs:
+                  matches=[]
+                  for p in pathlib.Path(folder).rglob("*"):
+                      if p.is_file() and p.stat().st_size<2*1024*1024 and sha(p.read_bytes())==expected: matches.append(p)
+                  assert len(matches)==1,(name,[str(p) for p in matches])
+                  b=matches[0].read_bytes()
+                  (stage/name).write_bytes(b)
+                  assert sha((stage/name).read_bytes())==expected
+                  result["documents"].append({"name":name,"source":matches[0].as_posix(),"sha256":expected,"bytes":len(b),"scope":"AUDIT_STAGING_ONLY"})
+              result["notice_staging_status"]="10/10 EXACT_EXISTING_DOCUMENTS_STAGED"
+              # Read only previous small result and nuspec metadata, no SDK/binary downloads or parity rerun.
+              old=next(pathlib.Path("tur039").rglob("result.json"))
+              assert sha(old.read_bytes())=="256bbccd0c841b858d938f8c2cb447d7bb503216614fc00bc10234c255073e8c"
+              urls=[]
+              for p in sorted(pathlib.Path("tur039").rglob("*.nuspec")):
+                  x=ET.fromstring(p.read_bytes())
+                  fields={e.tag.split("}")[-1]:e.text for e in x.iter() if e.tag.split("}")[-1] in ("id","version","licenseUrl")}
+                  assert fields["version"]=="10.0.26100.7705" and fields["licenseUrl"]=="https://aka.ms/WinSDKLicenseURL"
+                  urls.append(fields)
+              assert len(urls)==2 and {x["id"].lower() for x in urls}=={"microsoft.windows.sdk.cpp","microsoft.windows.sdk.cpp.x64"}
+              result["sdk_license"]["nuspec_links"]=urls
+              try:
+                  url=urls[0]["licenseUrl"]; assert trusted(url)
+                  opener=urllib.request.build_opener(Redirect())
+                  with opener.open(urllib.request.Request(url,headers={"User-Agent":"Embasic-Legal-License-Audit/1.0"}),timeout=90) as resp:
+                      assert trusted(resp.url)
+                      raw=resp.read(8*1024*1024+1); assert 0<len(raw)<=8*1024*1024
+                      rec=result["sdk_license"]
+                      rec.update({"url":url,"final_url":resp.url,"retrieved_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"http_status":resp.status,"content_type":resp.headers.get("Content-Type"),"content_disposition":resp.headers.get("Content-Disposition"),"last_modified":resp.headers.get("Last-Modified"),"etag":resp.headers.get("ETag"),"bytes":len(raw),"sha256":sha(raw)})
+                  kind="unknown"; plain=""
+                  if raw.lstrip().startswith(b"{\\rtf"):
+                      kind="rtf"
+                      # Extract only a derived review aid; raw bytes remain authoritative.
+                      plain=raw.decode("latin1")
+                      plain=re.sub(r"\\\\'[0-9a-fA-F]{2}", " ",plain)
+                      plain=re.sub(r"\\\\[a-zA-Z]+-?\\d* ?", " ",plain)
+                      plain=re.sub(r"[{}]", " ",plain)
+                  elif raw.startswith(b"PK"):
+                      with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                          if "word/document.xml" in z.namelist():
+                              kind="docx"
+                              assert z.getinfo("word/document.xml").file_size<=16*1024*1024
+                              doc=ET.fromstring(z.read("word/document.xml"))
+                              plain=" ".join(e.text or "" for e in doc.iter() if e.tag.endswith("}t"))
+                  elif raw.startswith(b"%PDF-"): kind="pdf"
+                  elif raw.startswith(bytes.fromhex("d0cf11e0a1b11ae1")): kind="ole"
+                  else:
+                      for enc in ("utf-8-sig","utf-16"):
+                          try:
+                              t=raw.decode(enc)
+                              if "license" in t.lower(): plain=t; kind="html" if "<html" in t.lower() else "txt"; break
+                          except UnicodeError: pass
+                  rec["format"]=kind
+                  if plain:
+                      norm=" ".join(plain.split())
+                      (root/"sdk-license-derived-review.txt").write_text(norm,encoding="utf-8")
+                      rec["derived_review_sha256"]=sha((root/"sdk-license-derived-review.txt").read_bytes())
+                      rec["markers"]={k:k.lower() in norm.lower() for k in ("Microsoft","License Terms","Windows","Distributable Code","Excluded License","REDIST","10.0.26100.7705")}
+                  if kind in ("rtf","docx","pdf","ole","txt","html"):
+                      name="sdk-license-original."+kind
+                      (root/name).write_bytes(raw); rec["raw_name"]=name
+                      rec["status"]="RAW_DOCUMENT_CAPTURED_REVIEW_REQUIRED"
+                  else:
+                      rec["status"]="UNRECOGNIZED_RESPONSE_NOT_A_LICENSE"
+              except Exception as e:
+                  result["sdk_license"]["error"]=repr(e)
+              (stage/"README.txt").write_text("AUDIT STAGING ONLY - NOT A RELEASE. Ten previously verified documents copied byte-for-byte. Microsoft SDK license capture is separate pending review. No product license, EULA acceptance, rights clearance, binary, or distribution authorization is asserted. Do not ship this folder as final compliance evidence. See result.json for hashes and outstanding gates.\n",encoding="utf-8")
+          finally:
+              (root/"result.json").write_text(json.dumps(result,indent=2),encoding="utf-8")
+              print("TUR040_RESULT",json.dumps(result))
+          assert len(result["documents"])==10
+          '@ | Set-Content -Encoding utf8 tur040.py
+          python tur040.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR040-License-Staging-Evidence-NOT-RELEASE
+          path: tur040-evidence/
+          if-no-files-found: error
