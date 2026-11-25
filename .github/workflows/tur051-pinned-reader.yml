@@ -1,0 +1,64 @@
+name: TUR051 pinned KTK reader (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur051-pinned-reader.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  pinned:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15056664563'
+          run-id: '45688754638'
+          github-token: ${{ github.token }}
+          path: prior50
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15058496001'
+          run-id: '45689770047'
+          github-token: ${{ github.token }}
+          path: prior51
+      - name: Verify new pin and revision-specific boundary behavior
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib,hashlib,json,subprocess,sys
+          p50=next(pathlib.Path("prior50").rglob("reader-candidate.sqlite"))
+          p51=next(pathlib.Path("prior51").rglob("reader-candidate.sqlite"))
+          r=pathlib.Path("tur051-pin-evidence");r.mkdir()
+          checks=[]
+          def test(n,v):
+              if not v:raise RuntimeError(n)
+              checks.append({"case":n,"pass":True})
+          def call(db,rev,aid):
+              return subprocess.run([sys.executable,"tools/audit_pinned_reader.py","--db",str(db),"--revision",rev,"--article",aid],capture_output=True,text=True,encoding="utf-8")
+          def denied(p,reason):
+              return p.returncode==65 and not p.stdout and json.loads(p.stderr)["reason"]==reason
+          def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+          aid="2918:normal:138";hold="2918:geçici:27"
+          q=call(p51,"TUR051",aid);v=json.loads(q.stdout)
+          test("new_pin_only_verified_m138_body",q.returncode==0 and v["body"]==[{"page":99,"ordinal":15,"text":"Bu Kanun hükümlerini Bakanlar Kurulu yürütür."}] and v["annotations"][0]["text"]=="Yürütme:" and v["evidence"]["artifact"]==15058496001 and not v["promotion_allowed"])
+          test("newly_quarantined_article_denied",denied(call(p51,"TUR051",hold),"WITHHELD_REVIEW"))
+          test("m138_still_denied_in_historical_revision",denied(call(p50,"TUR050",aid),"WITHHELD_REVIEW"))
+          test("prior_db_cannot_claim_new_pin",denied(call(p50,"TUR051",aid),"HASH_MISMATCH"))
+          test("new_db_cannot_claim_prior_pin",denied(call(p51,"TUR050",aid),"HASH_MISMATCH"))
+          test("new_separate_titles",all((q:=call(p51,"TUR051",i)).returncode==0 and json.loads(q.stdout)["annotations"][0]["text"]==t for i,t in [("2918:normal:136","Yürürlükten kaldırılan hükümler:"),("2918:normal:137","Yürürlüğe girme:")]))
+          test("previous_pvsk_source_access_preserved",(q:=call(p51,"TUR051","2559:normal:16")).returncode==0 and len(json.loads(q.stdout)["body"])==45 and len(json.loads(q.stdout)["annotations"])==3)
+          out={"status":"PINNED_AUDIT_READER_ONLY","promotion_allowed":False,"production":"NO-GO","official_legal_source":"NOT_VERIFIED","physical_uat":"NOT_RUN","checks":checks,"db_sha256":sha(p51),"wrapper_sha256":sha(pathlib.Path("tools/audit_pinned_reader.py")),"limitations":["historical revisions are explicitly selectable, not freshness protection","trusted exact source required; no product integration"]}
+          (r/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8")
+          print(json.dumps(out))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TUR051-Pinned-Reader-Evidence-NOT-RELEASE
+          path: tur051-pin-evidence/
+          if-no-files-found: error
