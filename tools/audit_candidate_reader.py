@@ -3,6 +3,9 @@ No legal acceptance, production authorization, arbitrary SQL or update capabilit
 import argparse, hashlib, hmac, json, pathlib, re, sqlite3, sys
 MAX_BYTES=32*1024*1024
 class Denied(Exception): pass
+class VerifiedSnapshot(sqlite3.Connection): pass
+# Independently verified artifact bytes, not metadata-only permission.
+G27_PINS={"TUR052":"2d5303313a2886918a5506ee516398b745cb42cb102a8d233c12f5cd0e822818","TUR053":"8cb48e72aaba7d25f902618c47edd26ef51e7a7d61182dc0610e8f98a0137b4c"}
 def snapshot(path, expected):
     if not re.fullmatch(r"[0-9a-f]{64}",expected): raise Denied("INVALID_EXPECTED_HASH")
     with pathlib.Path(path).open("rb") as f:
@@ -10,7 +13,8 @@ def snapshot(path, expected):
     if not data or len(data)>MAX_BYTES: raise Denied("INVALID_SIZE")
     if not hmac.compare_digest(hashlib.sha256(data).hexdigest(),expected): raise Denied("HASH_MISMATCH")
     if not data.startswith(b"SQLite format 3\x00"): raise Denied("INVALID_FORMAT")
-    db=sqlite3.connect(":memory:")
+    db=sqlite3.connect(":memory:",factory=VerifiedSnapshot)
+    db.verified_sha256=hashlib.sha256(data).hexdigest()
     try:
         db.deserialize(data)
         db.execute("PRAGMA trusted_schema=OFF")
@@ -27,7 +31,7 @@ def read_article(db,aid):
     # Known historical boundary defect: deny by default until a reviewed revision.
     if aid=="2918:geçici:27":
         rev=db.execute("SELECT value FROM metadata WHERE key='projection_revision'").fetchone()
-        if rev!=("TUR052",): raise Denied("REVISION_ARTICLE_QUARANTINED")
+        if not rev or not G27_PINS.get(rev[0]) or getattr(db,"verified_sha256",None)!=G27_PINS[rev[0]]: raise Denied("REVISION_ARTICLE_QUARANTINED")
     row=db.execute("SELECT law,kind,number,status,reason FROM article_index WHERE id=?",(aid,)).fetchone()
     if row is None: raise Denied("UNKNOWN_ARTICLE")
     law,kind,no,status,reason=row
