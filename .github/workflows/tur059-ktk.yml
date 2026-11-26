@@ -1,0 +1,43 @@
+name: TUR059 KTK scope and traffic clause audit (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur059-ktk.yml','tools/audit_tur059_boundary.py']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15124392385'
+          run-id: '45834946840'
+          github-token: ${{ github.token }}
+          path: prior58
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: prior47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Verify complete source blocks and note ownership
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          python3 tools/audit_tur059_boundary.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR059-KTK-Scope-Evidence-NOT-RELEASE
+          path: tur059-evidence/
+          if-no-files-found: error
