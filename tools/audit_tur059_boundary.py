@@ -37,7 +37,7 @@ for n,p,q,coords,bad,stop,no in [(2,1,2,[(1,o) for o in range(19,28)]+[(2,o) for
     added.extend((aid(n),2918,x["page"],x["ordinal"],x["body"]) for x in good)
     evidence.extend({"article_id":aid(n),**ev(x)} for x in good)
 g=[x for x in rv["list_review"] if x["article"]==aid(47)]
-test("m47_two_groups_nine_bents",[(x["lead_page"],x["lead_ordinal"],"".join(y["literal_label"] for y in x["members"])) for x in g]==[(39,21,"abcd"),(39,35,"abcde")] and all(x["legal_paragraph_number"] is None and x["lead_text"]==line(x["lead_page"],x["lead_ordinal"])["body"] for x in g) and all(y["source_sha256"]==sha(line(y["page"],y["ordinal"])["body"].encode()) for x in g for y in x["members"]))
+test("m47_two_groups_nine_bents",[(x["lead_page"],x["lead_ordinal"],"".join(y["literal_label"] for y in x["members"])) for x in g]==[(39,21,"abcd"),(39,35,"abcde")] and all(x["legal_paragraph_number"] is None and x["lead_text"]==s.execute("SELECT body FROM membership WHERE article_id=? AND page=? AND ordinal=?",(aid(47),x["lead_page"],x["lead_ordinal"])).fetchone()[0] for x in g) and all(y["source_sha256"]==sha(line(y["page"],y["ordinal"])["body"].encode()) for x in g for y in x["members"]))
 test("m2_two_literal_scope_bents",line(1,22)["body"].endswith("Ancak aksine bir hüküm yoksa;") and line(1,23)["body"].startswith("a) ") and line(1,26)["body"].startswith("b) "))
 test("m47_six_amendment_starts_preserved",all(line(p,o)["raw"].startswith("(") for p,o in [(39,30),(39,33),(40,5),(40,9),(40,18),(40,28)]))
 lawnotes=[]
