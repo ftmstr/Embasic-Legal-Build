@@ -1,0 +1,43 @@
+name: TUR056 adjacent KTK article audit (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur056-ktk.yml','tools/audit_tur056_boundary.py']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15064090183'
+          run-id: '45700585363'
+          github-token: ${{ github.token }}
+          path: prior55
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: prior47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Verify source boundaries
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          python3 tools/audit_tur056_boundary.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR056-KTK-Adjacent-Evidence-NOT-RELEASE
+          path: tur056-evidence/
+          if-no-files-found: error
