@@ -29,6 +29,7 @@ def snapshot(path, expected):
         db.close()
         raise
 def read_article(db,aid):
+    if aid in ("2918:normal:3","2918:normal:45"): raise Denied("REVISION_ARTICLE_QUARANTINED")
     # Known historical boundary defects: only independently verified exact bytes.
     pins={"2918:normal:28":M28_M29_PINS,"2918:normal:29":M28_M29_PINS,"2918:normal:49":M49_PINS,"2918:geçici:27":G27_PINS}.get(aid)
     if pins is not None:
