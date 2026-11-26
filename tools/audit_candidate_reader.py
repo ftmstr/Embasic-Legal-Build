@@ -5,8 +5,9 @@ MAX_BYTES=32*1024*1024
 class Denied(Exception): pass
 class VerifiedSnapshot(sqlite3.Connection): pass
 # Independently verified artifact bytes, not metadata-only permission.
-G27_PINS={"TUR055":"91f7369ee251f7897719e4e4bb4cd80ff2af04ef85081294852fa78b60a77e2d","TUR054":"643a3f1b65299dea8bc5d2edb56edc90138b643b0dddb323200e727c1236d2cc","TUR052":"2d5303313a2886918a5506ee516398b745cb42cb102a8d233c12f5cd0e822818","TUR053":"8cb48e72aaba7d25f902618c47edd26ef51e7a7d61182dc0610e8f98a0137b4c"}
-M49_PINS={"TUR055":"91f7369ee251f7897719e4e4bb4cd80ff2af04ef85081294852fa78b60a77e2d","TUR054":"643a3f1b65299dea8bc5d2edb56edc90138b643b0dddb323200e727c1236d2cc"}
+G27_PINS={"TUR056":"c7424fdeedcc46d93865f48f66077f8144ef0c5b0fbf4531c8cef379372d7c38","TUR055":"91f7369ee251f7897719e4e4bb4cd80ff2af04ef85081294852fa78b60a77e2d","TUR054":"643a3f1b65299dea8bc5d2edb56edc90138b643b0dddb323200e727c1236d2cc","TUR052":"2d5303313a2886918a5506ee516398b745cb42cb102a8d233c12f5cd0e822818","TUR053":"8cb48e72aaba7d25f902618c47edd26ef51e7a7d61182dc0610e8f98a0137b4c"}
+M49_PINS={"TUR056":"c7424fdeedcc46d93865f48f66077f8144ef0c5b0fbf4531c8cef379372d7c38","TUR055":"91f7369ee251f7897719e4e4bb4cd80ff2af04ef85081294852fa78b60a77e2d","TUR054":"643a3f1b65299dea8bc5d2edb56edc90138b643b0dddb323200e727c1236d2cc"}
+M28_M29_PINS={"TUR056":"c7424fdeedcc46d93865f48f66077f8144ef0c5b0fbf4531c8cef379372d7c38"}
 def snapshot(path, expected):
     if not re.fullmatch(r"[0-9a-f]{64}",expected): raise Denied("INVALID_EXPECTED_HASH")
     with pathlib.Path(path).open("rb") as f:
@@ -28,10 +29,8 @@ def snapshot(path, expected):
         db.close()
         raise
 def read_article(db,aid):
-    # Source boundary review: two neighboring articles contain unrelated headings.
-    if aid in ("2918:normal:28","2918:normal:29"): raise Denied("REVISION_ARTICLE_QUARANTINED")
     # Known historical boundary defects: only independently verified exact bytes.
-    pins={"2918:normal:49":M49_PINS,"2918:geçici:27":G27_PINS}.get(aid)
+    pins={"2918:normal:28":M28_M29_PINS,"2918:normal:29":M28_M29_PINS,"2918:normal:49":M49_PINS,"2918:geçici:27":G27_PINS}.get(aid)
     if pins is not None:
         rev=db.execute("SELECT value FROM metadata WHERE key='projection_revision'").fetchone()
         if not rev or not pins.get(rev[0]) or getattr(db,"verified_sha256",None)!=pins[rev[0]]: raise Denied("REVISION_ARTICLE_QUARANTINED")
