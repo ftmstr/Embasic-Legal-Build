@@ -1,0 +1,74 @@
+name: TUR064 military boundary review (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur064-military-boundary-review.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15022263838'
+          run-id: '45618167694'
+          github-token: ${{ github.token }}
+          path: source44
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: grammar47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15220742803'
+          run-id: '46043316831'
+          github-token: ${{ github.token }}
+          path: prior63
+      - name: Audit only; never grant access
+        run: |
+          python3 - <<'PY'
+          import pathlib,hashlib,json,sqlite3,re,subprocess,unicodedata
+          p=next(pathlib.Path('source44').rglob('u15.pdf'))
+          g=next(pathlib.Path('grammar47').rglob('grammar-candidate.sqlite'))
+          r=next(pathlib.Path('prior63').rglob('reader-candidate.sqlite'))
+          def sha(x):return hashlib.sha256(x.read_bytes()).hexdigest()
+          def norm(s):return ' '.join(unicodedata.normalize('NFC',s).split())
+          checks=[]
+          def test(n,v):
+              assert v,n
+              checks.append({'case':n,'pass':True})
+          before=list(map(sha,[p,g,r]))
+          test('exact_inputs',before==['e66404cf48ef79bf83bb425df04f98f4063a77fbdee99bcdf4a1d8f2f905f35d','3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e','cd773dcd4f2eb52d3c2ac3e860b2682b233a89784ddd36d2050a41afcb823b06'])
+          db=sqlite3.connect(g.resolve().as_uri()+'?mode=ro',uri=True)
+          old=sqlite3.connect(r.resolve().as_uri()+'?mode=ro',uri=True)
+          lines={o:dict(raw=t,bbox=json.loads(b)) for o,t,b in db.execute('select ordinal,raw,bbox from line where law=1632 and page=25')}
+          text=norm(subprocess.check_output(['pdftotext','-f','25','-l','25','-layout',str(p),'-'],text=True))
+          records={}
+          for n,a,b,stop,marks in [(84,3,5,'Amir ve mafevkine',[3,5]),(85,7,15,'İtaatsizlik ve cezası',[7,11,13]),(87,20,25,'Toplu asker karşısında',[20,24])]:
+              start=text.index(f'Madde {n} –'); end=text.index(stop,start+1)
+              test(f'm{n}_full_block',text[start:end].strip()==norm(' '.join(lines[o]['raw'] for o in range(a,b+1))))
+              body=[re.sub(r'^Madde \d+ –\s*','',lines[a]['raw'])]+[lines[o]['raw'] for o in range(a+1,b+1)]
+              test(f'm{n}_literal_markers',[o for o,t in zip(range(a,b+1),body) if re.match(r'^[123]\.',t)]==marks)
+              aid=f'1632:normal:{n}'
+              test(f'm{n}_held',old.execute('select status from article_index where id=?',(aid,)).fetchone()==('WITHHELD_REVIEW',) and old.execute('select count(*) from reader_line where article_id=?',(aid,)).fetchone()==(0,))
+              records[str(n)]={'coordinates':list(range(a,b+1)),'markers':marks,'lines':[lines[o] for o in range(a,b+1)]}
+          test('m84_note28',lines[2]['raw'].endswith('28') and lines[31]['raw'].startswith('28 Bu madde başlığı') and norm(lines[31]['raw']+' '+lines[32]['raw']) in text)
+          test('m87_wrong_m88_heading',db.execute('select article_id from membership where law=1632 and page=25 and ordinal=26').fetchone()==('1632:normal:87',) and norm(lines[26]['raw']+' '+lines[27]['raw']) in text and lines[28]['raw'].startswith('Madde 88'))
+          test('no_heading_leak',old.execute('select count(*) from reader_line where law=1632 and page=25 and ordinal in (26,27)').fetchone()==(0,))
+          test('no_held_leak',old.execute("select count(*) from reader_line l join article_index a on a.id=l.article_id where a.status='WITHHELD_REVIEW'").fetchone()==(0,))
+          test('baseline',old.execute('select status,count(*) from article_index group by status order by status').fetchall()==[('CANDIDATE_UNVERIFIED',1484),('WITHHELD_REVIEW',24)] and old.execute('select count(*) from reader_line').fetchone()==(18389,) and old.execute('select count(*) from reader_annotation').fetchone()==(105,))
+          test('integrity',all(c.execute('pragma integrity_check').fetchone()==('ok',) and not c.execute('pragma foreign_key_check').fetchall() for c in (db,old)))
+          db.close();old.close();test('original_bytes_unchanged',before==list(map(sha,[p,g,r])))
+          out=pathlib.Path('tur064-review');out.mkdir()
+          (out/'result.json').write_text(json.dumps({'status':'REVIEW_ONLY_NO_PROMOTION','promotion_allowed':False,'production':'NO-GO','inputs':before,'checks':checks,'records':records,'defect':{'page':25,'ordinal':26,'wrong_owner':'1632:normal:87','correct_role':'first line of m88 title','second_line':27},'annotations':{str(o):lines[o] for o in (2,6,19,26,27,31,32)}},ensure_ascii=False,indent=2),encoding='utf-8')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR064-Military-Boundary-Review-NOT-RELEASE
+          path: tur064-review/
+          if-no-files-found: error
