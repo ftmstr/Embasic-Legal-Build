@@ -1,0 +1,96 @@
+name: TUR065 military repair staging (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur065-military-repair.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  staging:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15022263838'
+          run-id: '45618167694'
+          github-token: ${{ github.token }}
+          path: source44
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: grammar47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15220742803'
+          run-id: '46043316831'
+          github-token: ${{ github.token }}
+          path: prior63
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15220924883'
+          run-id: '46044871025'
+          github-token: ${{ github.token }}
+          path: review64
+      - name: Install independent text extractor
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+      - name: Stage exact repair without binding permission
+        run: |
+          python3 - <<'PY'
+          import pathlib as P,sqlite3 as S,hashlib as H,json as J,shutil,subprocess,unicodedata,re
+          def sha(b):return H.sha256(b).hexdigest()
+          def file(d,n):return next(P.Path(d).rglob(n))
+          def ro(p):return S.connect(p.resolve().as_uri()+'?mode=ro',uri=True)
+          def norm(t):return ' '.join(unicodedata.normalize('NFC',t).split())
+          pdf=file('source44','u15.pdf');g=file('grammar47','grammar-candidate.sqlite');base=file('prior63','reader-candidate.sqlite');rev=file('review64','result.json')
+          inputs=[pdf,g,base,rev];before=[sha(p.read_bytes()) for p in inputs];checks=[]
+          def test(n,v):
+              assert v,n
+              checks.append({'case':n,'pass':True})
+          test('exact_source_inputs',before[:3]==['e66404cf48ef79bf83bb425df04f98f4063a77fbdee99bcdf4a1d8f2f905f35d','3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e','cd773dcd4f2eb52d3c2ac3e860b2682b233a89784ddd36d2050a41afcb823b06'])
+          prior=J.loads(rev.read_bytes())
+          test('review64_fail_closed',prior['promotion_allowed'] is False and prior['status']=='REVIEW_ONLY_NO_PROMOTION' and len(prior['checks'])==17 and all(x['pass'] for x in prior['checks']) and prior['inputs']==before[:3] and prior['defect']=={'page':25,'ordinal':26,'wrong_owner':'1632:normal:87','correct_role':'first line of m88 title','second_line':27})
+          s=ro(g);s.row_factory=S.Row
+          def line(o):return dict(s.execute('SELECT * FROM line WHERE law=1632 AND page=25 AND ordinal=?',(o,)).fetchone())
+          def block(a,b):return norm(' '.join(line(o)['raw'] for o in range(a,b+1)))
+          def aid(n):return f'1632:normal:{n}'
+          page=norm(subprocess.check_output(['pdftotext','-f','25','-l','25','-layout',str(pdf),'-'],text=True))
+          out=P.Path('tur065-evidence');out.mkdir();dst=out/'repair-candidate.sqlite';shutil.copyfile(base,dst)
+          d=S.connect(dst);d.execute('PRAGMA foreign_keys=ON');d.execute('ATTACH DATABASE ? AS old',(base.resolve().as_uri()+'?mode=ro',))
+          test('baseline',d.execute('select status,count(*) from article_index group by status order by status').fetchall()==[('CANDIDATE_UNVERIFIED',1484),('WITHHELD_REVIEW',24)] and d.execute('select count(*) from reader_line').fetchone()==(18389,) and d.execute('select count(*) from reader_annotation').fetchone()==(105,))
+          added=[];ann=[];records={}
+          for n,a,b,stop,marks in [(84,3,5,'Amir ve mafevkine',[3,5]),(85,7,15,'İtaatsizlik ve cezası',[7,11,13]),(87,20,25,'Toplu asker karşısında',[20,24])]:
+              start=page.index(f'Madde {n} –');end=page.index(stop,start+1)
+              test(f'm{n}_exact_source_block',page[start:end].strip()==block(a,b) and prior['records'][str(n)]['coordinates']==list(range(a,b+1)) and all(prior['records'][str(n)]['lines'][i]['raw']==line(o)['raw'] and prior['records'][str(n)]['lines'][i]['bbox']==J.loads(line(o)['bbox']) for i,o in enumerate(range(a,b+1))))
+              body=[re.sub(r'^Madde \d+ –\s*','',line(a)['raw'])]+[line(o)['raw'] for o in range(a+1,b+1)]
+              test(f'm{n}_literal_markers',[o for o,t in zip(range(a,b+1),body) if re.match(r'^[123]\.',t)]==marks)
+              test(f'm{n}_prior_held',d.execute('SELECT status FROM article_index WHERE id=?',(aid(n),)).fetchone()==('WITHHELD_REVIEW',) and not d.execute('SELECT 1 FROM reader_line WHERE article_id=?',(aid(n),)).fetchall())
+              added.extend((aid(n),1632,25,o,t) for o,t in zip(range(a,b+1),body))
+              records[str(n)]={'body_coordinates':list(range(a,b+1)),'literal_markers':marks,'legal_paragraph_number':None}
+          test('m84_note28_anchor',line(2)['raw'].endswith('28') and any(z['text'].strip()=='28' and z['flags']&1 for z in J.loads(line(2)['spans'])) and line(31)['raw'].startswith('28 Bu madde başlığı') and block(31,32) in page)
+          test('m88_title_exact_owner',s.execute('select article_id from membership where law=1632 and page=25 and ordinal=26').fetchone()[0]==aid(87) and block(26,27) in page and line(28)['raw'].startswith('Madde 88') and d.execute('SELECT header_page,header_ordinal FROM article_index WHERE id=?',(aid(88),)).fetchone()==(25,28))
+          test('no_heading_or_note_leak',all(not d.execute('select 1 from reader_line where law=1632 and page=25 and ordinal=?',(o,)).fetchall() for o in (2,6,19,26,27,31,32)))
+          for n,k,o in [(84,'TITLE',2),(85,'TITLE',6),(87,'TITLE',19),(88,'TITLE',26),(88,'TITLE',27),(84,'FOOTNOTE',31),(84,'FOOTNOTE',32)]:
+              raw=line(o)['raw'];ann.append((aid(n),k,25,o,raw,sha(raw.encode())))
+          # Keep live projection identical. Store candidate delta separately; no article access granted.
+          d.execute('UPDATE metadata SET value=? WHERE key=?',('TUR065_STAGED_ONLY','projection_revision'))
+          test('three_staged_targets',len(added)==18 and len(ann)==7 and len({(x[2],x[3]) for x in added})==18)
+          test('no_annotation_collision',all(not d.execute('SELECT 1 FROM reader_annotation a JOIN article_index i ON i.id=a.article_id WHERE i.law=1632 AND a.page=? AND a.ordinal=?',(p,o)).fetchall() for _,_,p,o,_,_ in ann))
+          test('delta_never_contains_m88_title_in_body',not any(x[3] in (26,27,31,32) for x in added))
+          test('live_projection_unchanged',all(not d.execute(f'SELECT * FROM {t} EXCEPT SELECT * FROM old.{t}').fetchall() and not d.execute(f'SELECT * FROM old.{t} EXCEPT SELECT * FROM {t}').fetchall() for t in ('article_index','reader_line','reader_annotation','temporal_decision')))
+          test('all_24_still_held',d.execute("SELECT count(*) FROM article_index WHERE status='WITHHELD_REVIEW'").fetchone()==(24,) and not d.execute("SELECT 1 FROM reader_line WHERE article_id IN (SELECT id FROM article_index WHERE status='WITHHELD_REVIEW')").fetchall())
+          test('integrity',d.execute('pragma integrity_check').fetchone()==('ok',) and not d.execute('pragma foreign_key_check').fetchall())
+          d.rollback();d.close();s.close();dst.unlink()
+          test('original_bytes_unchanged',before==[sha(p.read_bytes()) for p in inputs])
+          delta={'status':'STAGED_DELTA_ONLY','promotion_allowed':False,'production':'NO-GO','base_sha256':before[2],'inputs':before,'body_rows':added,'annotations':ann,'records':records,'m88_title_ownership':{'page':25,'ordinals':[26,27],'owner':aid(88)},'note28_anchor':{'page':25,'ordinal':2,'owner':aid(84),'superscript':28},'checks':checks}
+          (out/'result.json').write_text(J.dumps(delta,ensure_ascii=False,indent=2),encoding='utf-8')
+          print(J.dumps({'checks':len(checks),'staged_body':len(added),'staged_annotations':len(ann),'promotion_allowed':False}))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR065-Military-Staged-Delta-NOT-RELEASE
+          path: tur065-evidence/
+          if-no-files-found: error
