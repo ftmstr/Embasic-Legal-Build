@@ -1,0 +1,170 @@
+name: TUR066 military exact pinned reader (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur066-pinned-reader.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  pinned:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15057816038'
+          run-id: '45687953803'
+          github-token: ${{ github.token }}
+          path: prior49
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15056664563'
+          run-id: '45688754638'
+          github-token: ${{ github.token }}
+          path: prior50
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15058496001'
+          run-id: '45689770047'
+          github-token: ${{ github.token }}
+          path: prior51
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060085952'
+          run-id: '45693327586'
+          github-token: ${{ github.token }}
+          path: prior52
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060641088'
+          run-id: '45694684288'
+          github-token: ${{ github.token }}
+          path: prior53
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060707849'
+          run-id: '45696360940'
+          github-token: ${{ github.token }}
+          path: prior54
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15064090183'
+          run-id: '45700585363'
+          github-token: ${{ github.token }}
+          path: prior55
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15093086567'
+          run-id: '45768293248'
+          github-token: ${{ github.token }}
+          path: prior56
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15093895209'
+          run-id: '45769614123'
+          github-token: ${{ github.token }}
+          path: prior57
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15124392385'
+          run-id: '45834946840'
+          github-token: ${{ github.token }}
+          path: prior58
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15137949379'
+          run-id: '45862843182'
+          github-token: ${{ github.token }}
+          path: prior59
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15144913108'
+          run-id: '45876381548'
+          github-token: ${{ github.token }}
+          path: prior60
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15156381649'
+          run-id: '45901669617'
+          github-token: ${{ github.token }}
+          path: prior61
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15191499573'
+          run-id: '45987493698'
+          github-token: ${{ github.token }}
+          path: prior62
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15220742803'
+          run-id: '46043316831'
+          github-token: ${{ github.token }}
+          path: prior63
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15223381987'
+          run-id: '46047479451'
+          github-token: ${{ github.token }}
+          path: prior66
+      - name: Verify new military exact access and required regressions
+        run: |
+          python3 - <<'PY'
+          import pathlib as P,hashlib as H,json as J,subprocess,sys,sqlite3 as S,tempfile,shutil
+          def sha(p):return H.sha256(p.read_bytes()).hexdigest()
+          paths={f'TUR{i:03d}':next(P.Path(f'prior{i}').rglob('reader-candidate.sqlite')) for i in list(range(49,64))+[66]}
+          before={k:sha(p) for k,p in paths.items()}
+          sys.path.insert(0,'tools')
+          import audit_pinned_reader as pin
+          import audit_candidate_reader as gen
+          checks=[]
+          def test(n,v):
+              assert v,n
+              checks.append({'case':n,'pass':True})
+          test('all_exact_snapshot_inputs',set(paths)==set(pin.PINS) and all(before[k]==pin.PINS[k]['sha256'] for k in paths))
+          def call(rev,aid,generic=False,path=None):
+              p=path or paths[rev]
+              args=['tools/audit_candidate_reader.py','--db',str(p),'--expected-sha256',sha(p)] if generic else ['tools/audit_pinned_reader.py','--db',str(p),'--revision',rev]
+              return subprocess.run([sys.executable,*args,'--article',aid],capture_output=True,text=True,encoding='utf-8')
+          def denied(r,reason):
+              return r.returncode==65 and not r.stdout and J.loads(r.stderr)['reason']==reason
+          def read(rev,aid,generic=False):
+              r=call(rev,aid,generic);assert r.returncode==0,(rev,aid,r.stderr);return J.loads(r.stdout)
+          def a(n):return f'1632:normal:{n}'
+          military=[a(n) for n in (84,85,87,88)]
+          oldprotected=[f'2918:normal:{n}' for n in (65,2,47,3,45,4,46,28,29,49)]+['2918:ek:2','2918:geçici:27']+[f'2918:geçici:{n}' for n in (1,2,3)]+['2918:ek:19','2918:ek:20','2863:normal:3']
+          for rev in list(paths)[:-1]:
+              test(rev+'_military_historical_hold',all(denied(call(rev,aid,generic),'REVISION_ARTICLE_QUARANTINED') for aid in military for generic in (False,True)))
+          delta=J.loads(next(P.Path('prior66').rglob('boundary-review.json')).read_bytes())
+          db=S.connect(paths['TUR063'].resolve().as_uri()+'?mode=ro',uri=True)
+          for n in (84,85,87,88):
+              aid=a(n);v=read('TUR066',aid);g=read('TUR066',aid,True)
+              rr=[(x['page'],x['ordinal'],x['text']) for x in v['body']]
+              expected=[tuple(x[2:]) for x in delta['body_rows'] if x[0]==aid] if n!=88 else db.execute('select page,ordinal,body from reader_line where article_id=? order by page,ordinal',(aid,)).fetchall()
+              aa=[(x['type'],x['page'],x['ordinal'],x['text'],x['source_text_sha256']) for x in v['annotations']]
+              expected_aa=sorted([tuple(x[1:]) for x in delta['annotations'] if x[0]==aid],key=lambda x:(x[1],x[2]))
+              test(aid+'_exact_body_annotation',rr==expected and aa==expected_aa and v['evidence']['artifact']==15223381987 and v['promotion_allowed'] is False)
+              test(aid+'_generic_exact_match',all(v[k]==g[k] for k in ('body','annotations','status','promotion_allowed')))
+          db.close()
+          for aid in oldprotected:
+              v=read('TUR063',aid);n=read('TUR066',aid);g=read('TUR066',aid,True)
+              test(aid+'_prior_exact_preserved',all(v[k]==n[k]==g[k] for k in ('body','annotations','status','promotion_allowed')))
+          test('historical_ek19_20_and_g123_preserved',all(denied(call(rev,aid,generic),'REVISION_ARTICLE_QUARANTINED') for rev in list(paths)[:-1] for aid in ('2918:ek:19','2918:ek:20','2918:geçici:1','2918:geçici:2','2918:geçici:3') if int(rev[3:])<(62 if ':ek:' in aid else 61) for generic in (False,True)))
+          test('cross_revision_hash_rejected',denied(call('TUR066',a(84),path=paths['TUR063']),'HASH_MISMATCH'))
+          with tempfile.TemporaryDirectory() as td:
+              p=P.Path(td)/'tampered.sqlite';shutil.copyfile(paths['TUR066'],p)
+              d=S.connect(p);d.execute("update reader_line set body='synthetic changed text' where article_id=? and page=25 and ordinal=3",(a(84),));d.commit();d.close()
+              test('tampered_self_hash_all_22_rejected',all(denied(call('TUR066',aid,True,path=p),'REVISION_ARTICLE_QUARANTINED') for aid in military+oldprotected) and denied(call('TUR066',a(84),path=p),'HASH_MISMATCH'))
+          test('all_16_original_snapshots_unchanged',before=={k:sha(p) for k,p in paths.items()})
+          out=P.Path('tur066-pin-evidence');out.mkdir()
+          r={'status':'PINNED_AUDIT_READER_ONLY','production':'NO-GO','promotion_allowed':False,'checks':checks,'input_hashes':before,'generic_reader_sha256':sha(P.Path('tools/audit_candidate_reader.py')),'wrapper_sha256':sha(P.Path('tools/audit_pinned_reader.py')),'limitations':['no current law acceptance','no Windows integration','no signature or general freshness guarantee']}
+          (out/'result.json').write_text(J.dumps(r,indent=2),encoding='utf-8');print(J.dumps(r))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR066-Pinned-Reader-Evidence-NOT-RELEASE
+          path: tur066-pin-evidence/
+          if-no-files-found: error
