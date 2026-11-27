@@ -59,7 +59,7 @@ jobs:
               test(f'm{n}_body_only_label_removed',all(x['body']==(x['raw'].split(' – ',1)[1] if i==0 else x['raw']) for i,x in enumerate(rs)))
               actual=[x['ordinal'] for x in rs if re.match(r'^\d+\.',x['body'])]
               overlay=s.execute('select ordinal,parent_id,kind,status from grammar_overlay where law=1632 and page=26 and ordinal between ? and ? order by ordinal',(a,b)).fetchall()
-              test(f'm{n}_literal_markers',actual==marks and [tuple(x) for x in overlay]==[(o,aid(n),'legacy_paragraph_candidate','REVIEW_REQUIRED') for o in marks] and [int(re.match(r'^(\d+)\.',line(26,o)['body']).group(1)) for o in marks]==list(range(1,len(marks)+1)))
+              test(f'm{n}_literal_markers',actual==marks and [tuple(x) for x in overlay]==[(o,aid(n),'legacy_paragraph_candidate','REVIEW_REQUIRED') for o in marks] and [int(re.match(r'^(\d+)\.',next(x['body'] for x in rs if x['ordinal']==o)).group(1)) for o in marks]==list(range(1,len(marks)+1)))
               test(f'm{n}_amendments_and_no_footnote',[x['ordinal'] for x in rs if '(Değişik:' in x['raw']]==amends and not any(z['flags']&1 and z['text'].strip().isdigit() for x in rs+[title] for z in J.loads(x['spans'])))
               rows.extend((aid(n),1632,26,x['ordinal'],x['body']) for x in rs)
               anns.append((aid(n),'TITLE',26,a-1,title['raw'],H.sha256(title['raw'].encode()).hexdigest()))
