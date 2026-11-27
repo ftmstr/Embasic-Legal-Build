@@ -29,6 +29,8 @@ jobs:
           run-id: '46043316831'
           github-token: ${{ github.token }}
           path: prior63
+      - name: Install independent Poppler text extractor
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
       - name: Audit only; never grant access
         run: |
           python3 - <<'PY'
