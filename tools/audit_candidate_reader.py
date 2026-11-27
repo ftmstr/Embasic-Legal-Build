@@ -22,6 +22,8 @@ MILITARY_95_PINS={"TUR070":"00e7b912cba49e773cb70879406a3b0d76007c87449954c584b5
 
 MILITARY_97_101_103_PINS={"TUR070":"00e7b912cba49e773cb70879406a3b0d76007c87449954c584b585bf07fb6b3c"}
 
+MILITARY_107_108_115_117_118_PINS={}  # newly observed source defects: no revision allowed
+
 def snapshot(path, expected):
     if not re.fullmatch(r"[0-9a-f]{64}",expected): raise Denied("INVALID_EXPECTED_HASH")
     with pathlib.Path(path).open("rb") as f:
@@ -44,7 +46,7 @@ def snapshot(path, expected):
         raise
 def read_article(db,aid):
     # Known historical boundary defects: only independently verified exact bytes.
-    pins={"1632:normal:97":MILITARY_97_101_103_PINS,"1632:normal:101":MILITARY_97_101_103_PINS,"1632:normal:103":MILITARY_97_101_103_PINS,"1632:normal:92":MILITARY_92_93_94_PINS,"1632:normal:93":MILITARY_92_93_94_PINS,"1632:normal:94":MILITARY_92_93_94_PINS,"1632:normal:95":MILITARY_95_PINS,"1632:normal:89":MILITARY_89_90_91_PINS,"1632:normal:90":MILITARY_89_90_91_PINS,"1632:normal:91":MILITARY_89_90_91_PINS,"1632:normal:84":MILITARY_84_85_87_88_PINS,"1632:normal:85":MILITARY_84_85_87_88_PINS,"1632:normal:87":MILITARY_84_85_87_88_PINS,"1632:normal:88":MILITARY_84_85_87_88_PINS,"2863:normal:3":M2863_3_PINS,"2918:ek:19":EK19_EK20_PINS,"2918:ek:20":EK19_EK20_PINS,"2918:geçici:1":G123_PINS,"2918:geçici:2":G123_PINS,"2918:geçici:3":G123_PINS,"2918:normal:65":M65_EK2_PINS,"2918:ek:2":M65_EK2_PINS,"2918:normal:2":M2_M47_PINS,"2918:normal:47":M2_M47_PINS,"2918:normal:3":M3_M45_PINS,"2918:normal:45":M3_M45_PINS,"2918:normal:4":M4_M46_PINS,"2918:normal:46":M4_M46_PINS,"2918:normal:28":M28_M29_PINS,"2918:normal:29":M28_M29_PINS,"2918:normal:49":M49_PINS,"2918:geçici:27":G27_PINS}.get(aid)
+    pins={"1632:normal:107":MILITARY_107_108_115_117_118_PINS,"1632:normal:108":MILITARY_107_108_115_117_118_PINS,"1632:normal:115":MILITARY_107_108_115_117_118_PINS,"1632:normal:117":MILITARY_107_108_115_117_118_PINS,"1632:normal:118":MILITARY_107_108_115_117_118_PINS,"1632:normal:97":MILITARY_97_101_103_PINS,"1632:normal:101":MILITARY_97_101_103_PINS,"1632:normal:103":MILITARY_97_101_103_PINS,"1632:normal:92":MILITARY_92_93_94_PINS,"1632:normal:93":MILITARY_92_93_94_PINS,"1632:normal:94":MILITARY_92_93_94_PINS,"1632:normal:95":MILITARY_95_PINS,"1632:normal:89":MILITARY_89_90_91_PINS,"1632:normal:90":MILITARY_89_90_91_PINS,"1632:normal:91":MILITARY_89_90_91_PINS,"1632:normal:84":MILITARY_84_85_87_88_PINS,"1632:normal:85":MILITARY_84_85_87_88_PINS,"1632:normal:87":MILITARY_84_85_87_88_PINS,"1632:normal:88":MILITARY_84_85_87_88_PINS,"2863:normal:3":M2863_3_PINS,"2918:ek:19":EK19_EK20_PINS,"2918:ek:20":EK19_EK20_PINS,"2918:geçici:1":G123_PINS,"2918:geçici:2":G123_PINS,"2918:geçici:3":G123_PINS,"2918:normal:65":M65_EK2_PINS,"2918:ek:2":M65_EK2_PINS,"2918:normal:2":M2_M47_PINS,"2918:normal:47":M2_M47_PINS,"2918:normal:3":M3_M45_PINS,"2918:normal:45":M3_M45_PINS,"2918:normal:4":M4_M46_PINS,"2918:normal:46":M4_M46_PINS,"2918:normal:28":M28_M29_PINS,"2918:normal:29":M28_M29_PINS,"2918:normal:49":M49_PINS,"2918:geçici:27":G27_PINS}.get(aid)
     if pins is not None:
         rev=db.execute("SELECT value FROM metadata WHERE key='projection_revision'").fetchone()
         if not rev or not pins.get(rev[0]) or getattr(db,"verified_sha256",None)!=pins[rev[0]]: raise Denied("REVISION_ARTICLE_QUARANTINED")
