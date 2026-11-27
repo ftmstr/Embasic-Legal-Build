@@ -1,0 +1,105 @@
+name: TUR067 military boundary snapshot (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur067-military-snapshot.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15022263838'
+          run-id: '45618167694'
+          github-token: ${{ github.token }}
+          path: source44
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: grammar47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15223381987'
+          run-id: '46047479451'
+          github-token: ${{ github.token }}
+          path: prior66
+      - name: Install independent extractor
+        run: sudo apt-get -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=- update && sudo apt-get -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=- install -y --no-install-recommends poppler-utils
+      - name: Exact source and isolated projection repair
+        run: |
+          python3 - <<'PY'
+          import pathlib as P,sqlite3 as S,hashlib as H,json as J,shutil,subprocess,unicodedata,re
+          def sha(p):return H.sha256(p.read_bytes()).hexdigest()
+          def file(d,n):return next(P.Path(d).rglob(n))
+          def norm(t):return ' '.join(unicodedata.normalize('NFC',t).split())
+          pdf=file('source44','u15.pdf');g=file('grammar47','grammar-candidate.sqlite');base=file('prior66','reader-candidate.sqlite')
+          inputs=[pdf,g,base];before=list(map(sha,inputs));checks=[]
+          def test(n,v):
+              assert v,n
+              checks.append({'case':n,'pass':True})
+          test('exact_inputs',before==['e66404cf48ef79bf83bb425df04f98f4063a77fbdee99bcdf4a1d8f2f905f35d','3945755b862a41a2b510c1afe78c1ab758f8d4e2dac70d37534082fa44805b7e','c8245dc5d5824798c5f47a95bbf0ac21c1883ad4fcd2e421abc45615bd60a65a'])
+          s=S.connect(g.resolve().as_uri()+'?mode=ro',uri=True);s.row_factory=S.Row
+          def line(p,o):return dict(s.execute('select * from line where law=1632 and page=? and ordinal=?',(p,o)).fetchone())
+          def aid(n):return f'1632:normal:{n}'
+          def ev(x):return {'page':x['page'],'ordinal':x['ordinal'],'raw':x['raw'],'bbox':J.loads(x['bbox']),'source_text_sha256':H.sha256(x['raw'].encode()).hexdigest()}
+          pages={p:norm(subprocess.check_output(['pdftotext','-f',str(p),'-l',str(p),'-layout',str(pdf),'-'],text=True)) for p in (25,26,27)}
+          page=pages[26];rows=[];anns=[];records={}
+          for n,a,b,marks,amends in [(89,3,9,[3,8],[3]),(90,11,17,[11,16],[]),(91,19,31,[19,21,24,28],[24,28])]:
+              rs=[dict(x) for x in s.execute('select m.*,l.raw,l.bbox,l.classification,l.spans from membership m join line l using(law,page,ordinal) where article_id=? order by page,ordinal',(aid(n),))]
+              test(f'm{n}_exact_membership',[(x['page'],x['ordinal']) for x in rs]==[(26,o) for o in range(a,b+1)] and all(x['classification'] in ('ARTICLE_HEADER','BODY_CANDIDATE') for x in rs))
+              title=line(26,a-1);nexttitle=line(26,b+1)
+              start=page.index(title['raw']);end=page.index(nexttitle['raw'],start+1)
+              test(f'm{n}_complete_pdf_block',title['classification']==nexttitle['classification']=='HEADING_CANDIDATE' and norm(page[start:end])==norm(title['raw']+' '+' '.join(x['raw'] for x in rs)))
+              test(f'm{n}_body_only_label_removed',all(x['body']==(x['raw'].split(' – ',1)[1] if i==0 else x['raw']) for i,x in enumerate(rs)))
+              actual=[x['ordinal'] for x in rs if re.match(r'^\d+\.',x['body'])]
+              overlay=s.execute('select ordinal,parent_id,kind,status from grammar_overlay where law=1632 and page=26 and ordinal between ? and ? order by ordinal',(a,b)).fetchall()
+              test(f'm{n}_literal_markers',actual==marks and [tuple(x) for x in overlay]==[(o,aid(n),'legacy_paragraph_candidate','REVIEW_REQUIRED') for o in marks] and [int(re.match(r'^(\d+)\.',line(26,o)['body']).group(1)) for o in marks]==list(range(1,len(marks)+1)))
+              test(f'm{n}_amendments_and_no_footnote',[x['ordinal'] for x in rs if '(Değişik:' in x['raw']]==amends and not any(z['flags']&1 and z['text'].strip().isdigit() for x in rs+[title] for z in J.loads(x['spans'])))
+              rows.extend((aid(n),1632,26,x['ordinal'],x['body']) for x in rs)
+              anns.append((aid(n),'TITLE',26,a-1,title['raw'],H.sha256(title['raw'].encode()).hexdigest()))
+              records[str(n)]={'body':[ev(x) for x in rs],'title':ev(title),'literal_markers':marks,'amendment_anchors':amends,'legal_paragraph_number':None}
+          test('no_page26_footnote',not s.execute("select 1 from line where law=1632 and page=26 and classification='FOOTNOTE_CANDIDATE'").fetchall())
+          out=P.Path('tur067-evidence');out.mkdir();dst=out/'reader-candidate.sqlite';shutil.copyfile(base,dst)
+          d=S.connect(dst);d.execute('pragma foreign_keys=ON');d.execute('attach database ? as old',(base.resolve().as_uri()+'?mode=ro',))
+          def query(q,args=()):return d.execute(q,args).fetchall()
+          test('neighbor88_exact_tail',query('select page,ordinal,body from reader_line where article_id=? and page=26 order by ordinal',(aid(88),))==[(26,o,line(26,o)['raw']) for o in (0,1)] and page.startswith(norm(' '.join(line(26,o)['raw'] for o in (0,1)))))
+          test('neighbor92_complete_held',page.endswith(norm(' '.join(line(26,o)['raw'] for o in (32,33,34)))) and pages[27].startswith(norm(' '.join(line(27,o)['raw'] for o in range(5)))) and query('select status from article_index where id=?',(aid(92),))==[('WITHHELD_REVIEW',)] and not query('select 1 from reader_line where article_id=?',(aid(92),)))
+          targets=[aid(n) for n in (89,90,91)]
+          test('baseline',query('select status,count(*) from article_index group by status order by status')==[('CANDIDATE_UNVERIFIED',1487),('WITHHELD_REVIEW',21)] and query('select count(*) from reader_line')==[(18407,)] and query('select count(*) from reader_annotation')==[(112,)])
+          for a in targets:
+              assert query('select status from article_index where id=?',(a,))==[('WITHHELD_REVIEW',)]
+              d.execute("update article_index set status='CANDIDATE_UNVERIFIED',reason='SOURCE_BOUNDARY_REVIEW_ONLY' where id=?",(a,))
+          d.executemany('insert into reader_line values(?,?,?,?,?)',rows);d.executemany('insert into reader_annotation values(?,?,?,?,?,?)',anns)
+          d.execute("update metadata set value='TUR067' where key='projection_revision'")
+          def diff(t,rev=False):
+              x,y=('old.','') if rev else ('','old.')
+              return set(query(f'select * from {x}{t} except select * from {y}{t}'))
+          test('only_three_index_changes',all({x[0] for x in diff('article_index',r)}==set(targets) for r in (False,True)) and {x[:6] for x in diff('article_index')}=={x[:6] for x in diff('article_index',True)})
+          test('27_body_additions_only',len(rows)==27 and diff('reader_line')==set(rows) and not diff('reader_line',True))
+          test('3_annotations_additions_only',len(anns)==3 and diff('reader_annotation')==set(anns) and not diff('reader_annotation',True))
+          test('counts_exact',query('select status,count(*) from article_index group by status order by status')==[('CANDIDATE_UNVERIFIED',1490),('WITHHELD_REVIEW',18)] and query('select count(*) from reader_line')==[(18434,)] and query('select count(*) from reader_annotation')==[(115,)])
+          test('no_held_or_annotation_leak',not query("select 1 from reader_line where article_id in (select id from article_index where status='WITHHELD_REVIEW')") and not query('select 1 from reader_line r join reader_annotation a on r.law=(select law from article_index where id=a.article_id) and r.page=a.page and r.ordinal=a.ordinal'))
+          test('metadata_only_revision',diff('metadata')=={('projection_revision','TUR067')} and diff('metadata',True)=={('projection_revision','TUR066')})
+          test('temporal_unchanged',not diff('temporal_decision') and not diff('temporal_decision',True) and query('select count(*) from temporal_decision')==[(11,)] and all(not J.loads(x[0])['automatic_effect'] for x in query('select record from temporal_decision')))
+          test('ktk_and_2863_unchanged',all(query('select status,count(*) from article_index where law=? group by status',(law,))==[('CANDIDATE_UNVERIFIED',n)] for law,n in [(2918,187),(2863,98)]))
+          for p in sorted(base.parent.glob('*.json')):
+              if p.name!='result.json':shutil.copyfile(p,out/('tur066-boundary-review.json' if p.name=='boundary-review.json' else p.name))
+          rv=J.loads((out/'review-only.json').read_bytes())
+          test('review_records_preserved',len(rv['overlay_review'])==119 and len(rv['list_review'])==19 and sum(len(x['members']) for x in rv['list_review'])==90 and len(J.loads((out/'tur058-boundary-review.json').read_bytes())['definition_anchors'])==90 and all(sha(p)==sha(out/('tur066-boundary-review.json' if p.name=='boundary-review.json' else p.name)) for p in base.parent.glob('*.json') if p.name!='result.json'))
+          d.commit();test('integrity',query('pragma integrity_check')==[('ok',)] and not query('pragma foreign_key_check'));d.close();s.close()
+          test('original_bytes_unchanged',before==list(map(sha,inputs)))
+          (out/'boundary-review.json').write_text(J.dumps({'records':records,'body_rows':rows,'annotations':anns,'legal_acceptance':False,'promotion_allowed':False},ensure_ascii=False,indent=2),encoding='utf-8')
+          result={'status':'TUR067_BOUNDARY_CANDIDATE_ONLY','promotion_allowed':False,'production':'NO-GO','reader_sha256':sha(dst),'inputs':before,'checks':checks,'candidate_articles':1490,'withheld_articles':18,'body_rows':18434,'annotations':115}
+          (out/'result.json').write_text(J.dumps(result,indent=2),encoding='utf-8');print(J.dumps(result))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR067-Military-Snapshot-NOT-RELEASE
+          path: tur067-evidence/
+          if-no-files-found: error
