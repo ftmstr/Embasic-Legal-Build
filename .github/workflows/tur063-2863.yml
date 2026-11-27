@@ -1,0 +1,43 @@
+name: TUR063 nested definitions (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur063-2863.yml','tools/audit_tur063_boundary.py']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15191499573'
+          run-id: '45987493698'
+          github-token: ${{ github.token }}
+          path: prior62
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15032941250'
+          run-id: '45634365330'
+          github-token: ${{ github.token }}
+          path: prior47
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15024520474'
+          run-id: '45619585466'
+          github-token: ${{ github.token }}
+          path: prior45
+      - name: Verify exact nested definitions and source ownership
+        run: |
+          command -v pdftotext || { sudo apt-get update && sudo apt-get install -y poppler-utils; }
+          python3 tools/audit_tur063_boundary.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR063-2863-Nested-Definition-Evidence-NOT-RELEASE
+          path: tur063-evidence/
+          if-no-files-found: error
