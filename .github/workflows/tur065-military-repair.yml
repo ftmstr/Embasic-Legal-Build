@@ -36,7 +36,7 @@ jobs:
           github-token: ${{ github.token }}
           path: review64
       - name: Install independent text extractor
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+        run: sudo apt-get -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=- update && sudo apt-get -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=- install -y --no-install-recommends poppler-utils
       - name: Stage exact repair without binding permission
         run: |
           python3 - <<'PY'
