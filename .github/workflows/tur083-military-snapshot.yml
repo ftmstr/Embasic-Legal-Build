@@ -58,9 +58,9 @@ jobs:
               aid=e(n);rs=am(aid)
               test(f'ek{n}_exact_legacy_boundary',coords(rs)==(cc[:-1] if n==3 else cc) and not s.execute('select 1 from node where article_id=?',(aid,)).fetchall() and not s.execute('select 1 from grammar_overlay where parent_id=?',(aid,)).fetchall())
               ll=[line(*c) for c in cc]
-              test(f'ek{n}_body_exact',all(x['body']==(x['raw'].split(' – ',1)[1].strip() if i==0 else x['raw'][:-4] if (x['page'],x['ordinal'])==(45,24) else x['raw']) for i,x in enumerate(ll)) and all(x['body']==ll[i]['body'] for i,x in enumerate(rs)))
+              test(f'ek{n}_body_exact',all(x['body']==(x['raw'][:-4] if (x['page'],x['ordinal'])==(45,24) else x['raw']) for x in ll) and all(x['body']==(ll[i]['raw'].split(' – ',1)[1].strip() if i==0 else ll[i]['body']) for i,x in enumerate(rs)))
               test(f'ek{n}_literal_inventory',[(x['page'],x['ordinal'],x['body'][:2]) for x in ll if re.match(r'^[A-Z]\)',x['body'])]==marks)
-              rows.extend((aid,1632,x['page'],x['ordinal'],x['body']) for x in ll)
+              rows.extend((aid,1632,x['page'],x['ordinal'],x['raw'].split(' – ',1)[1].strip() if i==0 else x['body']) for i,x in enumerate(ll))
               records[aid]={'body':[ev(x) for x in ll],'titles':[],'footnotes':[],'literal_markers':marks,'legal_paragraph_number':None}
               for p,o,label in marks:
                   nid=aid+f'/literal@{p}:{o}';newnodes.append((nid,aid,aid,'literal_marker_candidate',label,p,o,'REVIEW_REQUIRED'));newov.append((1632,p,o,None,nid,aid,'literal_marker_candidate','REVIEW_REQUIRED','TUR083 source-coordinate marker; no historical old_id or legal number'))
