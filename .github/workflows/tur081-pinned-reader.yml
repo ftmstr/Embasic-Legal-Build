@@ -1,0 +1,362 @@
+name: TUR081 military exact pinned reader (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur081-pinned-reader.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  pinned:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15057816038'
+          run-id: '45687953803'
+          github-token: ${{ github.token }}
+          path: prior49
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15056664563'
+          run-id: '45688754638'
+          github-token: ${{ github.token }}
+          path: prior50
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15058496001'
+          run-id: '45689770047'
+          github-token: ${{ github.token }}
+          path: prior51
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060085952'
+          run-id: '45693327586'
+          github-token: ${{ github.token }}
+          path: prior52
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060641088'
+          run-id: '45694684288'
+          github-token: ${{ github.token }}
+          path: prior53
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060707849'
+          run-id: '45696360940'
+          github-token: ${{ github.token }}
+          path: prior54
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15064090183'
+          run-id: '45700585363'
+          github-token: ${{ github.token }}
+          path: prior55
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15093086567'
+          run-id: '45768293248'
+          github-token: ${{ github.token }}
+          path: prior56
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15093895209'
+          run-id: '45769614123'
+          github-token: ${{ github.token }}
+          path: prior57
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15124392385'
+          run-id: '45834946840'
+          github-token: ${{ github.token }}
+          path: prior58
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15137949379'
+          run-id: '45862843182'
+          github-token: ${{ github.token }}
+          path: prior59
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15144913108'
+          run-id: '45876381548'
+          github-token: ${{ github.token }}
+          path: prior60
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15156381649'
+          run-id: '45901669617'
+          github-token: ${{ github.token }}
+          path: prior61
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15191499573'
+          run-id: '45987493698'
+          github-token: ${{ github.token }}
+          path: prior62
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15220742803'
+          run-id: '46043316831'
+          github-token: ${{ github.token }}
+          path: prior63
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15223381987'
+          run-id: '46047479451'
+          github-token: ${{ github.token }}
+          path: prior66
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15225899094'
+          run-id: '46055412596'
+          github-token: ${{ github.token }}
+          path: prior67
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15226202525'
+          run-id: '46056242011'
+          github-token: ${{ github.token }}
+          path: prior68
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15226253510'
+          run-id: '46056939459'
+          github-token: ${{ github.token }}
+          path: prior69
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15226094332'
+          run-id: '46057749840'
+          github-token: ${{ github.token }}
+          path: prior70
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15227278342'
+          run-id: '46058481407'
+          github-token: ${{ github.token }}
+          path: prior71
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15229098262'
+          run-id: '46062006239'
+          github-token: ${{ github.token }}
+          path: prior72
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15229556899'
+          run-id: '46062886728'
+          github-token: ${{ github.token }}
+          path: prior73
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15230408262'
+          run-id: '46065997158'
+          github-token: ${{ github.token }}
+          path: prior74
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15232845073'
+          run-id: '46069222176'
+          github-token: ${{ github.token }}
+          path: prior75
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15233040668'
+          run-id: '46070012721'
+          github-token: ${{ github.token }}
+          path: prior76
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15255100402'
+          run-id: '46123379598'
+          github-token: ${{ github.token }}
+          path: prior77
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15254518103'
+          run-id: '46123967698'
+          github-token: ${{ github.token }}
+          path: prior78
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15254504533'
+          run-id: '46124746447'
+          github-token: ${{ github.token }}
+          path: prior79
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15254404769'
+          run-id: '46125710964'
+          github-token: ${{ github.token }}
+          path: prior80
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15255977897'
+          run-id: '46126985221'
+          github-token: ${{ github.token }}
+          path: prior81
+      - name: Verify exact new access and historical policy
+        run: |
+          python3 - <<'PY'
+          import pathlib as P,hashlib as H,json as J,subprocess,sys,sqlite3 as S,tempfile,shutil
+          def sha(p):return H.sha256(p.read_bytes()).hexdigest()
+          paths={f'TUR{i:03d}':next(P.Path(f'prior{i}').rglob('reader-candidate.sqlite')) for i in list(range(49,64))+[66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81]}
+          before={k:sha(p) for k,p in paths.items()}
+          sys.path.insert(0,'tools')
+          import audit_pinned_reader as pin
+          checks=[]
+          def test(n,v):
+              assert v,n
+              checks.append({'case':n,'pass':True})
+          test('all_exact_snapshot_inputs',set(paths)==set(pin.PINS) and all(before[k]==pin.PINS[k]['sha256'] for k in paths))
+          def call(rev,aid,generic=False,path=None):
+              p=path or paths[rev]
+              args=['tools/audit_candidate_reader.py','--db',str(p),'--expected-sha256',sha(p)] if generic else ['tools/audit_pinned_reader.py','--db',str(p),'--revision',rev]
+              return subprocess.run([sys.executable,*args,'--article',aid],capture_output=True,text=True,encoding='utf-8')
+          def denied(r,reason):return r.returncode==65 and not r.stdout and J.loads(r.stderr)['reason']==reason
+          def read(rev,aid,generic=False):
+              r=call(rev,aid,generic);assert r.returncode==0,(rev,aid,r.stderr);return J.loads(r.stdout)
+          def a(n):return f'1632:normal:{n}'
+          new=[a(n) for n in (172,173,174)]
+          repaired80=[a(n) for n in (160,161,164,167,169,170)]
+          repaired79=[a(n) for n in (153,154,155,156,158,159)]
+          repaired78=[a(n) for n in (148,149)]
+          repaired77=[a(n) for n in (139,140,143,144,145)]
+          repaired76=[a(n) for n in (132,133,134,135,136,137)]
+          repaired75=[a(n) for n in (128,129,131)]
+          repaired74=[a(n) for n in (123,125,126,127)]
+          repaired73=[a(n) for n in (119,121,122)]
+          repaired72=[a(n) for n in (107,108,115,117,118)]
+          lastnew=[a(n) for n in (109,113)]
+          holds=[a(n) for n in (181,185,187,188,189,190)]+[f'1632:ek:{n}' for n in (1,2,3,4)]
+          prevmil=[a(n) for n in (97,101,103)]
+          oldmil=[a(n) for n in (84,85,87,88)]
+          midmil=[a(n) for n in (89,90,91)]
+          lastmil=[a(n) for n in (92,93,94)]
+          prior=[f'2918:normal:{n}' for n in (65,2,47,3,45,4,46,28,29,49)]+['2918:ek:2','2918:geçici:27']+[f'2918:geçici:{n}' for n in (1,2,3)]+['2918:ek:19','2918:ek:20','2863:normal:3']+oldmil+midmil+lastmil+[a(95)]+prevmil+lastnew+repaired72+repaired73+repaired74+repaired75+repaired76+repaired77+repaired78+repaired79+repaired80
+          for rev in list(paths)[:-1]:
+              test(rev+'_new_military_hold',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for aid in new for g in (False,True)))
+          delta=J.loads(next(P.Path('prior81').rglob('boundary-review.json')).read_bytes())
+          for aid in new:
+              v=read('TUR081',aid);g=read('TUR081',aid,True)
+              rr=[(x['page'],x['ordinal'],x['text']) for x in v['body']]
+              aa=[(x['type'],x['page'],x['ordinal'],x['text'],x['source_text_sha256']) for x in v['annotations']]
+              test(aid+'_exact_body_annotation',rr==[tuple(x[2:]) for x in delta['body_rows'] if x[0]==aid] and aa==[tuple(x[1:]) for x in delta['annotations'] if x[0]==aid] and v['evidence']['artifact']==15255977897 and v['promotion_allowed'] is False)
+              test(aid+'_generic_exact_match',all(v[k]==g[k] for k in ('body','annotations','status','promotion_allowed')))
+          for aid in prior:
+              v=read('TUR080',aid);n=read('TUR081',aid);g=read('TUR081',aid,True)
+              test(aid+'_prior_exact_preserved',all(v[k]==n[k]==g[k] for k in ('body','annotations','status','promotion_allowed')))
+          test('old_military_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=63 for aid in oldmil for g in (False,True)))
+          test('mid_military_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=66 for aid in midmil for g in (False,True)))
+          test('last_military_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=67 for aid in lastmil for g in (False,True)))
+          test('m95_historical_fail_closed',all(denied(call(rev,a(95),g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=68 for g in (False,True)))
+          test('m97_101_103_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=69 for aid in prevmil for g in (False,True)))
+          test('m109_113_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=70 for aid in lastnew for g in (False,True)))
+          test('m107_108_115_117_118_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=71 for aid in repaired72 for g in (False,True)))
+          test('m119_121_122_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=72 for aid in repaired73 for g in (False,True)))
+          test('m123_125_126_127_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=73 for aid in repaired74 for g in (False,True)))
+          test('m128_129_131_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=74 for aid in repaired75 for g in (False,True)))
+          test('m132_137_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=75 for aid in repaired76 for g in (False,True)))
+          test('m139_145_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=76 for aid in repaired77 for g in (False,True)))
+          test('m148_149_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=77 for aid in repaired78 for g in (False,True)))
+          test('m153_159_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=78 for aid in repaired79 for g in (False,True)))
+          test('m160_170_historical_policy',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<=79 for aid in repaired80 for g in (False,True)))
+          for rev in paths:
+              test(rev+'_ten_unconditional_holds',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for aid in holds for g in (False,True)))
+          repair=next(P.Path('prior81').rglob('grammar-repaired.sqlite'))
+          test('exact_grammar_artifact',sha(repair)=='a07af6b64a9b63954578fded8880ac41e2d01e360c48943d4816705208cf7f89')
+          with S.connect(repair.resolve().as_uri()+'?mode=ro',uri=True) as gd:
+              test('six_number_four_letter_overlay',gd.execute("select count(*) from grammar_overlay where law=1632 and parent_id=?",(a(95),)).fetchone()==(6,) and gd.execute("select count(*) from grammar_overlay where law=1632 and parent_id=?",(a(95)+'/legacy-p@27:23',)).fetchone()==(4,))
+          prior95=next(P.Path('prior81').rglob('tur069-boundary-review.json'))
+          original95=next(P.Path('prior69').rglob('boundary-review.json'))
+          m95=J.loads(prior95.read_bytes())
+          test('literal_partition_and_references',sha(prior95)==sha(original95) and m95['legacy_nodes_authoritative'] is False and m95['records']['95']['legal_paragraph_number'] is None and len(m95['records']['95']['literal_markers'])==10 and len(m95['records']['95']['references'])==3 and len(m95['records']['95']['overlay_additions'])==9)
+          test('new_literal_coordinates',delta['legacy_nodes_authoritative'] is False and all(delta['records'][str(n)]['legal_paragraph_number'] is None for n in (172,173,174)) and not delta['new_overlays'] and not delta['new_nodes'])
+          with S.connect(repair.resolve().as_uri()+'?mode=ro',uri=True) as gd:
+              test('m118_four_markers',gd.execute("select page,ordinal from grammar_overlay where parent_id=? order by page,ordinal",(a(118),)).fetchall()==[(31,28),(31,30),(31,31),(32,0)] and gd.execute("select old_id from grammar_overlay where law=1632 and page=31 and ordinal=30").fetchone()==(None,))
+              test('onehundredfour_source_roles_no_leak',gd.execute('select count(*) from source_boundary_repair').fetchone()==(104,) and not gd.execute('select 1 from membership m join source_boundary_repair z using(law,page,ordinal)').fetchall())
+              test('three_dash_markers_null_old_id',gd.execute("select page,ordinal,old_id from grammar_overlay where parent_id=? order by page,ordinal",(a(119),)).fetchall()==[(32,4,None),(32,7,None),(32,11,None)])
+              test('seventh_chapter_unowned',gd.execute("select ordinal,article_id,role from source_boundary_repair where law=1632 and page=32 and ordinal in (23,24) order by ordinal").fetchall()==[(23,None,'CHAPTER_HEADING'),(24,None,'CHAPTER_HEADING')])
+              test('m123_three_colon_markers_null_old_id',gd.execute("select page,ordinal,old_id from grammar_overlay where parent_id=? order by page,ordinal",(a(123),)).fetchall()==[(33,2,None),(33,4,None),(33,6,None)])
+              test('m126_no_space_null_old_id',gd.execute("select old_id from grammar_overlay where law=1632 and page=33 and ordinal=21").fetchone()==(None,))
+              test('m127_two_title_roles',gd.execute("select page,ordinal,role from source_boundary_repair where article_id=? order by page,ordinal",(a(127),)).fetchall()==[(33,30,'TITLE'),(33,31,'TITLE')])
+              test('m131_three_dash_markers_null_old_id',gd.execute("select page,ordinal,old_id from grammar_overlay where parent_id=? order by page,ordinal",(a(131),)).fetchall()==[(35,0,None),(35,10,None),(35,12,None)])
+              test('eighth_chapter_unowned',gd.execute("select ordinal,article_id,role from source_boundary_repair where law=1632 and page=34 and ordinal in (19,20) order by ordinal").fetchall()==[(19,None,'CHAPTER_HEADING'),(20,None,'CHAPTER_HEADING')])
+              test('m136_six_literal_anchors',gd.execute("select page,ordinal,old_id from grammar_overlay where parent_id=? order by page,ordinal",(a(136),)).fetchall()==[(36,3,a(136)+'/s:1'),(36,6,None),(36,7,None),(36,8,None),(36,10,a(136)+'/s:2'),(36,13,a(136)+'/s:3')])
+              test('ninth_chapter_unowned',gd.execute("select ordinal,article_id,role from source_boundary_repair where law=1632 and page=35 and ordinal in (22,23) order by ordinal").fetchall()==[(22,None,'CHAPTER_HEADING'),(23,None,'CHAPTER_HEADING')])
+              test('m135_cross_page_title',gd.execute("select page,ordinal,role from source_boundary_repair where article_id=? order by page,ordinal",(a(135),)).fetchall()==[(35,30,'TITLE')])
+              test('m137_two_title_roles',gd.execute("select page,ordinal from source_boundary_repair where article_id=? and role='TITLE' order by page,ordinal",(a(137),)).fetchall()==[(36,16),(36,17)])
+              test('tenth_chapter_unowned',gd.execute("select ordinal,article_id,role from source_boundary_repair where law=1632 and page=37 and ordinal in (24,25) order by ordinal").fetchall()==[(24,None,'CHAPTER_HEADING'),(25,None,'CHAPTER_HEADING')])
+              test('m140_cross_page_title',gd.execute("select page,ordinal from source_boundary_repair where article_id=? and role='TITLE'",(a(140),)).fetchall()==[(36,29)])
+              test('m145_two_titles',gd.execute("select page,ordinal from source_boundary_repair where article_id=? and role='TITLE' order by page,ordinal",(a(145),)).fetchall()==[(37,26),(37,27)])
+              test('eleventh_chapter_unowned',gd.execute("select ordinal,article_id,role from source_boundary_repair where law=1632 and page=39 and ordinal in (2,3) order by ordinal").fetchall()==[(2,None,'CHAPTER_HEADING'),(3,None,'CHAPTER_HEADING')])
+              test('m148_five_literal_anchors',gd.execute("select page,ordinal,old_id from grammar_overlay where parent_id=? order by page,ordinal",(a(148),)).fetchall()==[(38,13,None),(38,15,None),(38,16,None),(38,17,None),(38,18,None)])
+              test('m149_two_literal_anchors',gd.execute("select page,ordinal,old_id from grammar_overlay where parent_id=? order by page,ordinal",(a(149),)).fetchall()==[(38,28,None),(38,29,None)])
+              test('fourth_bap_unowned',gd.execute("select ordinal,article_id,role from source_boundary_repair where law=1632 and page=39 and ordinal in (22,23) order by ordinal").fetchall()==[(22,None,'BAP_HEADING'),(23,None,'BAP_HEADING')])
+              test('m158_two_dash_anchors',gd.execute("select page,ordinal,old_id from grammar_overlay where parent_id=? order by page,ordinal",(a(158),)).fetchall()==[(40,12,None),(40,13,None)])
+              test('m156_two_titles',gd.execute("select page,ordinal from source_boundary_repair where article_id=? and role='TITLE' order by page,ordinal",(a(156),)).fetchall()==[(40,0),(40,1)])
+              test('m159_two_titles',gd.execute("select page,ordinal from source_boundary_repair where article_id=? and role='TITLE' order by page,ordinal",(a(159),)).fetchall()==[(40,16),(40,17)])
+              test('distinct_structural_heading_roles',gd.execute("select ordinal,article_id,role from source_boundary_repair where law=1632 and page=41 and article_id is null order by ordinal").fetchall()==[(0,None,'PART_HEADING'),(1,None,'PART_HEADING'),(2,None,'BAP_HEADING'),(3,None,'BAP_HEADING'),(10,None,'BAP_HEADING'),(11,None,'BAP_HEADING'),(12,None,'SECTION_HEADING'),(19,None,'SECTION_HEADING'),(20,None,'SUBSECTION_HEADING')])
+              test('m161_two_titles',gd.execute("select page,ordinal from source_boundary_repair where article_id=? and role='TITLE' order by page,ordinal",(a(161),)).fetchall()==[(40,25),(40,26)])
+              test('m170_two_titles',gd.execute("select page,ordinal from source_boundary_repair where article_id=? and role='TITLE' order by page,ordinal",(a(170),)).fetchall()==[(42,0),(42,1)])
+              test('new_bap_section_roles',gd.execute("select ordinal,article_id,role from source_boundary_repair where law=1632 and page=42 and article_id is null order by ordinal").fetchall()==[(7,None,'BAP_HEADING'),(8,None,'BAP_HEADING'),(11,None,'BAP_HEADING'),(12,None,'BAP_HEADING'),(15,None,'BAP_HEADING'),(16,None,'BAP_HEADING'),(17,None,'SECTION_HEADING')])
+              test('three_title_roles',gd.execute("select article_id,ordinal,role from source_boundary_repair where law=1632 and page=42 and ordinal in (5,9,13) order by ordinal").fetchall()==[(a(172),5,'TITLE'),(a(173),9,'TITLE'),(a(174),13,'TITLE')])
+          test('three_exact_repeals',all([x['text'] for x in read('TUR081',aid)['body']]==['(Mülga: 31/1/2013-6413/45 md.)'] for aid in new))
+          test('four_repeals_preserved',all([x['text'] for x in read('TUR081',a(n))['body']]==['(Mülga: 31/1/2013-6413/45 md.)'] for n in (164,167,169,170)))
+          test('m160_reference_preserved',any('91 inci maddenin 3 ve 4 numaralı fıkralarında' in x['text'] for x in read('TUR081',a(160))['body']))
+          delta79=J.loads(next(P.Path('prior81').rglob('tur079-boundary-review.json')).read_bytes())
+          e=delta79['records']['153']['footnote_anchor'];v=read('TUR081',a(153))
+          test('m153_footnote38_owner_exact',[(x['page'],x['ordinal']) for x in v['annotations'] if x['type']=='FOOTNOTE']==[(39,29),(39,30)] and (e['source']['page'],e['source']['ordinal'],e['superscript_span']['text'])==(39,10,'38') and e['superscript_span']['flags']&1)
+          test('m154_repeal_preserved',len(read('TUR081',a(154))['body'])==1 and 'Mülga : 22/3/2000-4551/38 md.' in read('TUR081',a(154))['body'][0]['text'])
+          delta78=J.loads(next(P.Path('prior81').rglob('tur078-boundary-review.json')).read_bytes())
+          for n,anchor,foot in [(148,(38,10,'36'),[(38,33)]),(149,(38,24,'37'),[(38,34),(38,35)])]:
+              v=read('TUR081',a(n));e=delta78['records'][str(n)]['footnote_anchor']
+              test(a(n)+'_footnote_owner_exact',[(x['page'],x['ordinal']) for x in v['annotations'] if x['type']=='FOOTNOTE']==foot and (e['source']['page'],e['source']['ordinal'],e['superscript_span']['text'])==anchor and e['superscript_span']['flags']&1)
+          test('shared_sanction_and_reference',[(x['page'],x['ordinal']) for x in delta78['records']['148']['shared_sanction']]==[(38,21),(38,22),(38,23)] and [(x['page'],x['ordinal']) for x in delta78['records']['149']['shared_reference']]==[(39,0),(39,1)])
+          old_delta=J.loads(next(P.Path('prior81').rglob('tur076-boundary-review.json')).read_bytes())
+          delta77=J.loads(next(P.Path('prior81').rglob('tur077-boundary-review.json')).read_bytes())
+          for n,anchor,foot in [(143,(37,11,'34'),[(37,30),(37,31)]),(145,(37,28,'35'),[(37,32),(37,33),(38,31),(38,32)])]:
+              v=read('TUR081',a(n));e=delta77['records'][str(n)]['footnote_anchor']
+              test(a(n)+'_footnote_owner_exact',[(x['page'],x['ordinal']) for x in v['annotations'] if x['type']=='FOOTNOTE']==foot and (e['source']['page'],e['source']['ordinal'],e['superscript_span']['text'])==anchor and e['superscript_span']['flags']&1 and e['body_omits_only_superscript']==(n==145))
+          for n,anchor,foot in [(132,(35,15,'31'),[(35,31),(35,32)]),(136,(36,9,'32'),[(36,30),(36,31),(36,32)]),(137,(36,19,'33'),[(36,33),(36,34)])]:
+              v=read('TUR081',a(n));e=old_delta['records'][str(n)]['footnote_anchor']
+              test(a(n)+'_footnote_owner_exact',[(x['page'],x['ordinal']) for x in v['annotations'] if x['type']=='FOOTNOTE']==foot and (e['source']['page'],e['source']['ordinal'],e['superscript_span']['text'])==anchor and e['superscript_span']['flags']&1 and e['body_omits_only_superscript']==(n in (136,137)))
+          test('m136_literal_context_not_legal_hierarchy',old_delta['records']['136']['literal_context']=={'first_numeric_anchor':[36,3],'letter_anchors':[[36,6],[36,7],[36,8]],'next_numeric_anchor':[36,10],'legal_hierarchy_authoritative':False})
+          test('m131_footnote30_lines',[(x['page'],x['ordinal']) for x in read('TUR081',a(131))['annotations'] if x['type']=='FOOTNOTE']==[(34,32),(34,33)])
+          test('m118_exact_no_space',any(x['text'].startswith('2.Daha') for x in read('TUR081',a(118))['body']))
+          test('m115_two_footnote_lines',[ (x['page'],x['ordinal']) for x in read('TUR081',a(115))['annotations'] if x['type']=='FOOTNOTE']==[(31,33),(31,34)])
+          delta80=J.loads(next(P.Path('prior81').rglob('tur080-boundary-review.json')).read_bytes())
+          test('defect_evidence_preserved',delta['unconditional_hold']==holds and len(delta['removed_membership'])==7 and len(delta['source_boundary_roles'])==10 and not delta['new_overlays'] and len(delta['quarantined_removed_rows'])==55 and len(delta80['quarantined_removed_rows'])==10 and len(delta78['quarantined_removed_rows'])==52 and sha(next(P.Path('prior81').rglob('tur080-boundary-review.json')))==sha(next(P.Path('prior80').rglob('boundary-review.json'))))
+          test('structural_footnote_ownership_deferred',delta['records'][a(189)]['reason']=='TITLE_AND_BAP_FOOTNOTE40_LEAK' and delta['records'][a(190)]['reason']=='BAP_FOOTNOTE41_LEAK' and delta['records']['1632:ek:3']['reason']=='MISSING_BODY_AND_FOOTNOTES42_43')
+          with S.connect(paths['TUR081'].resolve().as_uri()+'?mode=ro',uri=True) as d:
+              test('no_held_body_or_annotation',all(d.execute('select status from article_index where id=?',(aid,)).fetchone()==('WITHHELD_REVIEW',) and not d.execute('select 1 from reader_line where article_id=?',(aid,)).fetchall() and not d.execute('select 1 from reader_annotation where article_id=?',(aid,)).fetchall() for aid in holds))
+          test('historical_ek19_20_and_g123_preserved',all(denied(call(rev,aid,g),'REVISION_ARTICLE_QUARANTINED') for rev in paths for aid in ('2918:ek:19','2918:ek:20','2918:geçici:1','2918:geçici:2','2918:geçici:3') if int(rev[3:])<(62 if ':ek:' in aid else 61) for g in (False,True)))
+          test('historical_2863_m3_preserved',all(denied(call(rev,'2863:normal:3',g),'REVISION_ARTICLE_QUARANTINED') for rev in paths if int(rev[3:])<63 for g in (False,True)))
+          test('cross_revision_hash_rejected',denied(call('TUR081',a(172),path=paths['TUR080']),'HASH_MISMATCH'))
+          with tempfile.TemporaryDirectory() as td:
+              p=P.Path(td)/'tampered.sqlite';shutil.copyfile(paths['TUR081'],p)
+              d=S.connect(p);d.execute("update reader_line set body='synthetic changed text' where article_id=? and page=42 and ordinal=6",(a(172),));d.commit();d.close()
+              test('tampered_self_hash_all_77_rejected',all(denied(call('TUR081',aid,True,path=p),'REVISION_ARTICLE_QUARANTINED') for aid in new+prior) and denied(call('TUR081',a(172),path=p),'HASH_MISMATCH'))
+              h=P.Path(td)/'historical-tampered.sqlite';shutil.copyfile(paths['TUR068'],h)
+              d=S.connect(h);d.execute("update article_index set status='CANDIDATE_UNVERIFIED' where id=?",(a(95),));d.commit();d.close()
+              test('m95_historical_tampered_status_denied',denied(call('TUR068',a(95),True,path=h),'REVISION_ARTICLE_QUARANTINED'))
+              old=P.Path(td)/'held-old.sqlite';shutil.copyfile(paths['TUR070'],old)
+              d=S.connect(old);d.executemany("update article_index set status='CANDIDATE_UNVERIFIED' where id=?",[(aid,) for aid in holds]);d.commit();d.close()
+              test('ten_historical_forged_status_denied',all(denied(call('TUR070',aid,True,path=old),'REVISION_ARTICLE_QUARANTINED') for aid in holds))
+              d=S.connect(p);d.executemany("update article_index set status='CANDIDATE_UNVERIFIED' where id=?",[(aid,) for aid in holds]);d.commit();d.close()
+              test('ten_new_forged_status_denied',all(denied(call('TUR081',aid,True,path=p),'REVISION_ARTICLE_QUARANTINED') for aid in holds))
+          test('all_31_original_snapshots_unchanged',before=={k:sha(p) for k,p in paths.items()})
+          out=P.Path('tur081-pin-evidence');out.mkdir()
+          r={'status':'PINNED_AUDIT_READER_ONLY','production':'NO-GO','promotion_allowed':False,'checks':checks,'input_hashes':before,'generic_reader_sha256':sha(P.Path('tools/audit_candidate_reader.py')),'wrapper_sha256':sha(P.Path('tools/audit_pinned_reader.py')),'limitations':['no current law acceptance','no Windows integration','no signature or general freshness guarantee']}
+          (out/'result.json').write_text(J.dumps(r,indent=2),encoding='utf-8');print(J.dumps(r))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR081-Pinned-Reader-Evidence-NOT-RELEASE
+          path: tur081-pin-evidence/
+          if-no-files-found: error
