@@ -1,0 +1,121 @@
+name: TUR080 military source repair (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur080-military-snapshot.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15022263838'
+          run-id: '45618167694'
+          github-token: ${{ github.token }}
+          path: source
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15254504533'
+          run-id: '46124746447'
+          github-token: ${{ github.token }}
+          path: base
+      - name: Install independent extractor
+        run: sudo apt-get -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=- update && sudo apt-get -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=- install -y --no-install-recommends poppler-utils
+      - name: Source and isolated repair
+        run: |
+          python3 - <<'PY'
+          import pathlib as P,sqlite3 as S,hashlib as H,json as J,shutil,subprocess,unicodedata,re
+          def sha(p):return H.sha256(p.read_bytes()).hexdigest()
+          def norm(t):return ' '.join(unicodedata.normalize('NFC',t).split())
+          pdf=next(P.Path('source').rglob('u15.pdf'));base=next(P.Path('base').rglob('reader-candidate.sqlite')).parent
+          g=base/'grammar-repaired.sqlite';r=base/'reader-candidate.sqlite';prev=base/'boundary-review.json';out=P.Path('out');out.mkdir(exist_ok=True)
+          inputs=[pdf,g,r,prev];before=list(map(sha,inputs));checks=[]
+          def test(n,v):
+              assert v,n
+              checks.append({'case':n,'pass':True})
+          test('exact_inputs',before==['e66404cf48ef79bf83bb425df04f98f4063a77fbdee99bcdf4a1d8f2f905f35d','12d2c3d827dbb5388f2ce782e6c033048d575629cf32ca6ae727af960dda9da6','902f0a2627a1ac8479aa8e6f8c01af539d885b9f51c139874622bc30ba9a80e9','2baf94f02e35ffd07090b1b74fb9c20cd7462f57cb31baf7f0e3dc18f5a433a9'])
+          s=S.connect(g.resolve().as_uri()+'?mode=ro',uri=True);s.row_factory=S.Row
+          def a(n):return f'1632:normal:{n}'
+          def line(p,o):return dict(s.execute('select * from line where law=1632 and page=? and ordinal=?',(p,o)).fetchone())
+          def ev(x):return {'page':x['page'],'ordinal':x['ordinal'],'raw':x['raw'],'bbox':J.loads(x['bbox']),'source_text_sha256':H.sha256(x['raw'].encode()).hexdigest()}
+          def members(n):return [dict(x) for x in s.execute('select m.*,l.raw,l.bbox,l.classification,l.spans from membership m join line l using(law,page,ordinal) where article_id=? order by page,ordinal',(a(n),))]
+          def coords(rs):return [(x['page'],x['ordinal']) for x in rs]
+          for p,c in [(40,32),(41,25),(42,27)]:
+              raw=[dict(x) for x in s.execute('select * from line where law=1632 and page=? order by ordinal',(p,))]
+              test(f'p{p}_independent_text',len(raw)==c and [x['ordinal'] for x in raw]==list(range(c)) and norm(subprocess.check_output(['pdftotext','-f',str(p),'-l',str(p),'-layout',str(pdf),'-'],text=True))==norm(' '.join(x['raw'] for x in raw)))
+              test(f'p{p}_no_superscripts',not any(z['flags']&1 and z['text'].strip() for x in raw for z in J.loads(x['spans'])))
+          specs={160:([(40,o) for o in range(22,25)],[(40,21)]),161:([(40,o) for o in range(27,32)],[(40,25),(40,26)]),164:([(41,9)],[(41,8)]),167:([(41,18)],[(41,17)]),169:([(41,24)],[(41,23)]),170:([(42,2)],[(42,0),(42,1)])}
+          leaks={160:[(40,25)],161:[(41,o) for o in range(4)],164:[(41,10),(41,11),(41,12)],167:[(41,19),(41,20)],169:[(42,0)]}
+          rows=[];anns=[];roles=[];records={};removed=set()
+          for n,(cc,tt) in specs.items():
+              rs=members(n);valid=rs[:len(cc)]
+              test(f'm{n}_exact_boundary',coords(rs)==cc+leaks.get(n,[]) and coords(valid)==cc and all(x['body']==(x['raw'].split(' – ',1)[1].strip() if i==0 else x['raw']) for i,x in enumerate(valid)))
+              test(f'm{n}_no_literal_node',not s.execute('select 1 from node where article_id=?',(a(n),)).fetchall() and not s.execute('select 1 from grammar_overlay where parent_id=?',(a(n),)).fetchall() and not any(re.match(r'^(?:[A-Z][:)]|\d+\.|\d+ ?-)',x['body']) for x in valid))
+              test(f'm{n}_title_source',all(line(*c)['classification'] in ('HEADING_CANDIDATE','BODY_CANDIDATE') for c in tt))
+              for p,o in tt:
+                  x=ev(line(p,o));anns.append((a(n),'TITLE',p,o,x['raw'],x['source_text_sha256']));roles.append((1632,p,o,a(n),'TITLE',x['source_text_sha256']))
+              rows.extend((a(n),1632,x['page'],x['ordinal'],x['body']) for x in valid)
+              removed.update((a(n),1632,x['page'],x['ordinal'],x['body']) for x in rs[len(cc):])
+              records[str(n)]={'body':[ev(x) for x in valid],'titles':[ev(line(*c)) for c in tt],'footnotes':[],'legal_paragraph_number':None}
+          test('m160_literal_reference','91 inci maddenin 3 ve 4 numaralı fıkralarında' in line(40,23)['raw'])
+          records['160']['literal_references']=[ev(line(40,23))]
+          test('four_repeals_preserved',all(len(specs[n][0])==1 and members(n)[0]['body']=='(Mülga: 31/1/2013-6413/45 md.)' for n in (164,167,169,170)))
+          headings=[(41,0,'PART_HEADING','İKİNCi KISIM'),(41,1,'PART_HEADING','Disiplin cezaları'),(41,2,'BAP_HEADING','BİRİNCİ BAP'),(41,3,'BAP_HEADING','Disiplin cezalarının şümulü'),(41,10,'BAP_HEADING','İKİNCİ BAP'),(41,11,'BAP_HEADING','Disiplin cezaları'),(41,12,'SECTION_HEADING','I - DİSİPLİN CEZALARININ NEVİLERİ'),(41,19,'SECTION_HEADING','II - CEZA VERMEK SALAHİYETİ'),(41,20,'SUBSECTION_HEADING','A - Umumi surette')]
+          test('nine_distinct_heading_roles',all(line(p,o)['raw']==t for p,o,k,t in headings))
+          for p,o,k,t in headings:roles.append((1632,p,o,None,k,ev(line(p,o))['source_text_sha256']))
+          defects={172:[(42,7),(42,8)],173:[(42,11),(42,12)],174:[(42,15),(42,16),(42,17)]}
+          test('neighbor_heading_source',[line(42,o)['raw'] for o in (7,11,15,17)]==['ÜÇÜNCÜ BAP','DÖRDÜNCÜ BAP','BEŞİNCİ BAP','I - CEZANIN VERİLMESİ'])
+          for n,cc in defects.items():
+              test(f'm{n}_wrong_membership',coords(members(n))==[(42,cc[0][1]-1)]+cc and members(n)[0]['body']=='(Mülga: 31/1/2013-6413/45 md.)')
+              records[str(n)]={'decision':'WITHHELD_REVIEW','reason':'BAP_SECTION_HEADING_LEAK','source_evidence':[ev(line(*c)) for c in cc],'legacy_membership':[ev(x) for x in members(n)]}
+          test('neighbor_repeals_exact',all(coords(members(n))==[c] and members(n)[0]['body']=='(Mülga: 31/1/2013-6413/45 md.)' for n,c in [(162,(41,5)),(163,(41,7)),(165,(41,14)),(166,(41,16)),(168,(41,22)),(171,(42,4)),(175,(42,19)),(176,(42,21)),(177,(42,23)),(178,(42,25)),(179,(43,0))]))
+          gdpath=out/g.name;shutil.copyfile(g,gdpath);gd=S.connect(gdpath);gd.execute('pragma foreign_keys=ON');gd.execute('attach database ? as old',(g.resolve().as_uri()+'?mode=ro',))
+          def diff(db,t,rev=False):
+              x,y=('old.','') if rev else ('','old.')
+              return set(db.execute(f'select * from {x}{t} except select * from {y}{t}'))
+          gd.executemany('delete from membership where article_id=? and law=? and page=? and ordinal=?',[x[:4] for x in sorted(removed)])
+          gd.executemany('insert into source_boundary_repair values(?,?,?,?,?,?)',roles)
+          test('eleven_wrong_memberships_removed',len(removed)==11 and not diff(gd,'membership') and diff(gd,'membership',True)==removed)
+          test('seventeen_new_roles',len(roles)==17 and diff(gd,'source_boundary_repair')==set(roles) and not diff(gd,'source_boundary_repair',True) and gd.execute('select count(*) from source_boundary_repair').fetchone()==(94,) and not gd.execute('select 1 from membership m join source_boundary_repair z using(law,page,ordinal)').fetchall())
+          tables=[x[0] for x in gd.execute("select name from old.sqlite_master where type='table'")]
+          test('other_grammar_tables_unchanged',all(not diff(gd,t) and not diff(gd,t,True) for t in tables if t not in ('membership','source_boundary_repair')))
+          gd.commit();test('grammar_integrity',gd.execute('pragma integrity_check').fetchone()==('ok',) and not gd.execute('pragma foreign_key_check').fetchall());gd.close()
+          dst=out/r.name;shutil.copyfile(r,dst);d=S.connect(dst);d.execute('pragma foreign_keys=ON');d.execute('attach database ? as old',(r.resolve().as_uri()+'?mode=ro',));q=lambda sql,args=():d.execute(sql,args).fetchall()
+          test('baseline',q('select status,count(*) from article_index group by status order by status')==[('CANDIDATE_UNVERIFIED',1502),('WITHHELD_REVIEW',6)] and q('select count(*) from reader_line')==[(18529,)] and q('select count(*) from reader_annotation')==[(187,)])
+          targets=[a(n) for n in specs];holds=[a(n) for n in defects];quarantined=set()
+          for n in defects:
+              rr=set(q('select * from reader_line where article_id=?',(a(n),)));test(f'm{n}_candidate_exact_membership',q('select status from article_index where id=?',(a(n),))==[('CANDIDATE_UNVERIFIED',)] and not q('select 1 from reader_annotation where article_id=?',(a(n),)) and rr=={(a(n),1632,x['page'],x['ordinal'],x['body']) for x in members(n)});quarantined.update(rr)
+          for aid in targets:
+              assert q('select status from article_index where id=?',(aid,))==[('WITHHELD_REVIEW',)]
+              d.execute("update article_index set status='CANDIDATE_UNVERIFIED',reason='SOURCE_BOUNDARY_REVIEW_ONLY' where id=?",(aid,))
+          for aid in holds:
+              d.execute("update article_index set status='WITHHELD_REVIEW',reason='BAP_SECTION_HEADING_LEAK' where id=?",(aid,));d.execute('delete from reader_line where article_id=?',(aid,))
+          d.executemany('insert into reader_line values(?,?,?,?,?)',rows);d.executemany('insert into reader_annotation values(?,?,?,?,?,?)',anns);d.execute("update metadata set value='TUR080' where key='projection_revision'")
+          test('nine_index_changes',all({x[0] for x in diff(d,'article_index',v)}==set(targets+holds) for v in (False,True)) and {x[:6] for x in diff(d,'article_index')}=={x[:6] for x in diff(d,'article_index',True)})
+          test('12_body_add_10_remove',len(rows)==12 and len(quarantined)==10 and diff(d,'reader_line')==set(rows) and diff(d,'reader_line',True)==quarantined)
+          test('8_annotations_add',len(anns)==8 and diff(d,'reader_annotation')==set(anns) and not diff(d,'reader_annotation',True))
+          test('counts',q('select status,count(*) from article_index group by status order by status')==[('CANDIDATE_UNVERIFIED',1505),('WITHHELD_REVIEW',3)] and q('select count(*) from reader_line')==[(18531,)] and q('select count(*) from reader_annotation')==[(195,)])
+          test('three_held_exact',set(q("select id from article_index where status='WITHHELD_REVIEW'"))=={(x,) for x in holds})
+          test('no_leak',not q("select 1 from reader_line where article_id in (select id from article_index where status='WITHHELD_REVIEW')") and not q("select 1 from reader_annotation where article_id in (select id from article_index where status='WITHHELD_REVIEW')") and not q('select 1 from reader_line r join reader_annotation z on r.law=(select law from article_index where id=z.article_id) and r.page=z.page and r.ordinal=z.ordinal'))
+          test('metadata_only_revision',diff(d,'metadata')=={('projection_revision','TUR080')} and diff(d,'metadata',True)=={('projection_revision','TUR079')})
+          test('temporal_preserved',not diff(d,'temporal_decision') and not diff(d,'temporal_decision',True) and q('select count(*) from temporal_decision')==[(11,)] and all(not J.loads(x[0])['automatic_effect'] for x in q('select record from temporal_decision')))
+          test('ktk_2863_preserved',all(q('select status,count(*) from article_index where law=? group by status',(law,))==[('CANDIDATE_UNVERIFIED',n)] for law,n in [(2918,187),(2863,98)]))
+          for p in base.glob('*.json'):
+              if p.name!='result.json':shutil.copyfile(p,out/('tur079-boundary-review.json' if p.name=='boundary-review.json' else p.name))
+          rv=J.loads((out/'review-only.json').read_bytes());m95=J.loads((out/'tur069-boundary-review.json').read_bytes())
+          test('prior_json_and_m95_preserved',all(sha(p)==sha(out/('tur079-boundary-review.json' if p.name=='boundary-review.json' else p.name)) for p in base.glob('*.json') if p.name!='result.json') and len(rv['overlay_review'])==119 and len(rv['list_review'])==19 and sum(len(x['members']) for x in rv['list_review'])==90 and len(J.loads((out/'tur058-boundary-review.json').read_bytes())['definition_anchors'])==90 and len(m95['records']['95']['overlay_additions'])==9 and len(m95['records']['95']['references'])==3 and m95['legacy_nodes_authoritative'] is False)
+          d.commit();test('reader_integrity',q('pragma integrity_check')==[('ok',)] and not q('pragma foreign_key_check'));d.close();s.close()
+          test('original_bytes_unchanged',before==list(map(sha,inputs)))
+          (out/'boundary-review.json').write_text(J.dumps({'records':records,'body_rows':rows,'annotations':anns,'new_nodes':[],'new_overlays':[],'removed_membership':sorted(removed),'source_boundary_roles':roles,'quarantined_removed_rows':sorted(quarantined),'unconditional_hold':list(defects),'legacy_nodes_authoritative':False,'legal_acceptance':False,'promotion_allowed':False},ensure_ascii=False,indent=2),encoding='utf-8')
+          result={'status':'TUR080_BOUNDARY_CANDIDATE_ONLY','promotion_allowed':False,'production':'NO-GO','reader_sha256':sha(dst),'grammar_sha256':sha(gdpath),'inputs':before,'checks':checks,'candidate_articles':1505,'withheld_articles':3,'body_rows':18531,'annotations':195}
+          (out/'result.json').write_text(J.dumps(result,indent=2),encoding='utf-8');print(J.dumps(result))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR080-Military-Snapshot-NOT-RELEASE
+          path: out/
+          if-no-files-found: error
