@@ -423,7 +423,7 @@ jobs:
               test(aid+'_TUR085_generic',all(v[k]==g[k] for k in ('body','annotations','status','promotion_allowed')))
           p84=paths['TUR084'].parent
           test('TUR085_old_review_records_unchanged',all(sha(f)==sha(v85.parent/('tur084-boundary-review.json' if f.name=='boundary-review.json' else f.name)) for f in p84.glob('*.json') if f.name!='result.json'))
-          test('TUR085_grammar_exact',sha(next(P.Path('prior85').rglob('grammar.sqlite')))=='a37f86ebc79836145b3e5a2d265737247860d115247a312f53038fdec1cd5f80')
+          test('TUR085_grammar_exact',sha(next(P.Path('prior85').rglob('grammar-repaired.sqlite')))=='a37f86ebc79836145b3e5a2d265737247860d115247a312f53038fdec1cd5f80')
           with tempfile.TemporaryDirectory() as td:
               p=P.Path(td)/'tampered85.sqlite';shutil.copyfile(v85,p)
               d=S.connect(p);d.execute("update reader_line set body='tampered' where article_id=? and page=52 and ordinal=11",('1632:ek:17',));d.commit();d.close()
