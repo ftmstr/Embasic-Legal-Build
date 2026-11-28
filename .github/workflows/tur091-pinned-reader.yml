@@ -1,0 +1,338 @@
+name: TUR091 military exact pinned reader (NOT release)
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur091-pinned-reader.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  pinned:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15057816038'
+          run-id: '45687953803'
+          github-token: ${{ github.token }}
+          path: prior49
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15056664563'
+          run-id: '45688754638'
+          github-token: ${{ github.token }}
+          path: prior50
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15058496001'
+          run-id: '45689770047'
+          github-token: ${{ github.token }}
+          path: prior51
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060085952'
+          run-id: '45693327586'
+          github-token: ${{ github.token }}
+          path: prior52
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060641088'
+          run-id: '45694684288'
+          github-token: ${{ github.token }}
+          path: prior53
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15060707849'
+          run-id: '45696360940'
+          github-token: ${{ github.token }}
+          path: prior54
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15064090183'
+          run-id: '45700585363'
+          github-token: ${{ github.token }}
+          path: prior55
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15093086567'
+          run-id: '45768293248'
+          github-token: ${{ github.token }}
+          path: prior56
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15093895209'
+          run-id: '45769614123'
+          github-token: ${{ github.token }}
+          path: prior57
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15124392385'
+          run-id: '45834946840'
+          github-token: ${{ github.token }}
+          path: prior58
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15137949379'
+          run-id: '45862843182'
+          github-token: ${{ github.token }}
+          path: prior59
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15144913108'
+          run-id: '45876381548'
+          github-token: ${{ github.token }}
+          path: prior60
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15156381649'
+          run-id: '45901669617'
+          github-token: ${{ github.token }}
+          path: prior61
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15191499573'
+          run-id: '45987493698'
+          github-token: ${{ github.token }}
+          path: prior62
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15220742803'
+          run-id: '46043316831'
+          github-token: ${{ github.token }}
+          path: prior63
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15223381987'
+          run-id: '46047479451'
+          github-token: ${{ github.token }}
+          path: prior66
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15225899094'
+          run-id: '46055412596'
+          github-token: ${{ github.token }}
+          path: prior67
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15226202525'
+          run-id: '46056242011'
+          github-token: ${{ github.token }}
+          path: prior68
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15226253510'
+          run-id: '46056939459'
+          github-token: ${{ github.token }}
+          path: prior69
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15226094332'
+          run-id: '46057749840'
+          github-token: ${{ github.token }}
+          path: prior70
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15227278342'
+          run-id: '46058481407'
+          github-token: ${{ github.token }}
+          path: prior71
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15229098262'
+          run-id: '46062006239'
+          github-token: ${{ github.token }}
+          path: prior72
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15229556899'
+          run-id: '46062886728'
+          github-token: ${{ github.token }}
+          path: prior73
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15230408262'
+          run-id: '46065997158'
+          github-token: ${{ github.token }}
+          path: prior74
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15232845073'
+          run-id: '46069222176'
+          github-token: ${{ github.token }}
+          path: prior75
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15233040668'
+          run-id: '46070012721'
+          github-token: ${{ github.token }}
+          path: prior76
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15255100402'
+          run-id: '46123379598'
+          github-token: ${{ github.token }}
+          path: prior77
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15254518103'
+          run-id: '46123967698'
+          github-token: ${{ github.token }}
+          path: prior78
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15254504533'
+          run-id: '46124746447'
+          github-token: ${{ github.token }}
+          path: prior79
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15254404769'
+          run-id: '46125710964'
+          github-token: ${{ github.token }}
+          path: prior80
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15255977897'
+          run-id: '46126985221'
+          github-token: ${{ github.token }}
+          path: prior81
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15257832912'
+          run-id: '46132554106'
+          github-token: ${{ github.token }}
+          path: prior82
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15258444815'
+          run-id: '46133447598'
+          github-token: ${{ github.token }}
+          path: prior83
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15268035068'
+          run-id: '46155683671'
+          github-token: ${{ github.token }}
+          path: prior84
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15267907580'
+          run-id: '46156664727'
+          github-token: ${{ github.token }}
+          path: prior85
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15269210203'
+          run-id: '46158238500'
+          github-token: ${{ github.token }}
+          path: prior86
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15269205908'
+          run-id: '46158676390'
+          github-token: ${{ github.token }}
+          path: prior87
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15270206098'
+          run-id: '46161293930'
+          github-token: ${{ github.token }}
+          path: prior88
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15270172203'
+          run-id: '46161909023'
+          github-token: ${{ github.token }}
+          path: prior89
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15269734497'
+          run-id: '46162612124'
+          github-token: ${{ github.token }}
+          path: prior90
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15270342820'
+          run-id: '46163283889'
+          github-token: ${{ github.token }}
+          path: prior91
+      - name: Verify all historical policies and 101 exact access checks
+        run: |
+          python3 - <<'PY'
+          import pathlib as P,hashlib as H,json as J,subprocess,sys,sqlite3 as S,tempfile,shutil,ast,types
+          sha=lambda p:H.sha256(p.read_bytes()).hexdigest()
+          sys.path.insert(0,'tools')
+          import audit_candidate_reader as cr,audit_pinned_reader as pr
+          oldref='dbc88c35fb0f1718943e421b3fdbac5bef4e012f'
+          oldsrc=subprocess.check_output(['git','show',oldref+':tools/audit_candidate_reader.py']).decode()
+          old=types.ModuleType('old_reader');exec(compile(oldsrc,'old_reader.py','exec'),old.__dict__)
+          def mapping(source,mod):
+              f=next(n for n in ast.parse(source).body if isinstance(n,ast.FunctionDef) and n.name=='read_article')
+              d=next(n.value.func.value for n in f.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='pins' for t in n.targets))
+              return {k.value:getattr(mod,v.id) if isinstance(v,ast.Name) else ast.literal_eval(v) for k,v in zip(d.keys,d.values)}
+          om=mapping(oldsrc,old);nm=mapping(P.Path('tools/audit_candidate_reader.py').read_text(),cr)
+          restored={f'1632:normal:{n}' for n in (3,)}
+          newhash='f08eaf501479f38a2be8debbdd85e75b4fb29d25158d494b280ee9bd227535b8'
+          new_holds=set()
+          allowed={a for a,v in om.items() if v}|restored;holds=set(nm)-allowed
+          checks=[]
+          def ck(n,v):
+              assert v,n
+              checks.append({'case':n,'pass':True})
+          ck('scope',len(om)==134 and len(nm)==134 and set(nm)==set(om)|new_holds and len(allowed)==101 and len(holds)==33 and all(nm[a]=={} for a in new_holds) and all(not om[a] for a in restored))
+          ck('preserve_maps',all(nm[a]==(dict(om[a],TUR091=newhash) if a in allowed else om[a]) for a in om))
+          paths={f'TUR{i:03d}':next(P.Path(f'prior{i}').rglob('reader-candidate.sqlite')) for i in list(range(49,64))+list(range(66,92))}
+          before={k:sha(v) for k,v in paths.items()}
+          ck('all41_inputs',len(paths)==41 and set(pr.PINS)==set(paths)-{'TUR086'} and all(pr.PINS[k]['sha256']==before[k] for k in pr.PINS) and before['TUR086']=='b049a7779f99dcd74269da48203e916b46e1423b39f88c96daedde88b85b0678')
+          oldpins=types.ModuleType('old_pins');exec(compile(subprocess.check_output(['git','show',oldref+':tools/audit_pinned_reader.py']),'old_pins.py','exec'),oldpins.__dict__)
+          ck('wrapper_old_pins',len(oldpins.PINS)==39 and all(pr.PINS[k]==v for k,v in oldpins.PINS.items()))
+          def get(mod,db,a):
+              try:return ('OK',mod.read_article(db,a))
+              except mod.Denied as e:return ('DENY',str(e))
+          deny=('DENY','REVISION_ARTICLE_QUARANTINED')
+          base90=cr.snapshot(paths['TUR090'],before['TUR090'])
+          for rev in sorted(set(paths)-{'TUR091'}):
+              db=cr.snapshot(paths[rev],before[rev]);odb=old.snapshot(paths[rev],before[rev])
+              for a in sorted(om):
+                  x=get(old,odb,a);y=get(cr,db,a)
+                  ck(rev+'_'+a+'_historical',x==y and (x[0]=='OK' if om[a].get(rev)==before[rev] else x==deny))
+              for a in sorted(new_holds):ck(rev+'_'+a+'_new_historical_hold',get(cr,db,a)==deny)
+              db.close();odb.close()
+          db=cr.snapshot(paths['TUR091'],before['TUR091'])
+          for a in sorted(allowed-restored):ck(a+'_prior_exact',get(cr,db,a)==get(cr,base90,a) and get(cr,db,a)[0]=='OK')
+          base90.close()
+          delta=J.loads(next(P.Path('prior91').rglob('boundary-review.json')).read_bytes())
+          for a in sorted(restored):
+              v=get(cr,db,a)
+              ann=[(k,p,o,t,h) for owner,p,o,k,t,h in delta['roles'] if owner==a]
+              ck(a+'_restored_exact',v[0]=='OK' and [(x['page'],x['ordinal'],x['text']) for x in v[1]['body']]==[tuple(x) for x in delta['restored'][a]] and [(x['type'],x['page'],x['ordinal'],x['text'],x['source_text_sha256']) for x in v[1]['annotations']]==ann and not v[1]['promotion_allowed'])
+          for a in sorted(holds):ck(a+'_new_hold',get(cr,db,a)==deny)
+          db.close()
+          for a in sorted(nm):
+              q=subprocess.run([sys.executable,'tools/audit_pinned_reader.py','--db',str(paths['TUR091']),'--revision','TUR091','--article',a],capture_output=True,text=True)
+              if a in allowed:ck(a+'_wrapper_exact',q.returncode==0 and J.loads(q.stdout)['evidence']['artifact']==15270342820 and J.loads(q.stdout)['promotion_allowed'] is False)
+              else:ck(a+'_wrapper_hold',q.returncode==65 and not q.stdout and J.loads(q.stderr)['reason']==deny[1])
+          with tempfile.TemporaryDirectory() as td:
+              t=P.Path(td)/'forged.sqlite';shutil.copyfile(paths['TUR091'],t)
+              d=S.connect(t);d.execute("update reader_line set body='synthetic tamper' where article_id='1632:normal:1' and page=1 and ordinal=14");d.executemany("update article_index set status='CANDIDATE_UNVERIFIED' where id=?",[(a,) for a in holds]);d.commit();d.close()
+              forged=cr.snapshot(t,sha(t))
+              for a in sorted(nm):ck(a+'_self_hash_denied',get(cr,forged,a)==deny)
+              forged.close()
+              q=subprocess.run([sys.executable,'tools/audit_pinned_reader.py','--db',str(t),'--revision','TUR091','--article','1632:normal:1'],capture_output=True,text=True)
+              ck('wrapper_tamper_hash_mismatch',q.returncode==65 and not q.stdout and J.loads(q.stderr)['reason']=='HASH_MISMATCH')
+          ck('all41_input_bytes_unchanged',before=={k:sha(v) for k,v in paths.items()})
+          ck('grammar_exact',sha(next(P.Path('prior91').rglob('grammar-repaired.sqlite')))=='91f4de9156d721b4b46fc401a6135db647926d69e1b9de8e501c7112c8a80a94')
+          out=P.Path('tur091-pinned-evidence');out.mkdir()
+          (out/'result.json').write_text(J.dumps({'checks':checks,'input_hashes':before,'status':'PINNED_AUDIT_READER_ONLY','production':'NO-GO','promotion_allowed':False,'generic_reader_sha256':sha(P.Path('tools/audit_candidate_reader.py')),'wrapper_sha256':sha(P.Path('tools/audit_pinned_reader.py'))},indent=2))
+          print('PASS',len(checks),'40 prior snapshots, 101 exact, 33 holds, TUR086 unpinned')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR091-Pinned-Reader-Evidence-NOT-RELEASE
+          path: tur091-pinned-evidence/
+          if-no-files-found: error
