@@ -1,0 +1,113 @@
+name: TUR095 source repair candidate NOT RELEASE
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur095-source-review.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15022263838'
+          run-id: '45618167694'
+          github-token: ${{ github.token }}
+          path: source44
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15276964425'
+          run-id: '46180564875'
+          github-token: ${{ github.token }}
+          path: prior94
+      - name: Source reconciliation and SQLite repair
+        run: |
+          command -v pdftotext || (sudo apt-get update && sudo apt-get install -y poppler-utils)
+          cat > /tmp/tur095_repair.py <<'PY'
+          import pathlib as P,hashlib as H,json as J,sqlite3 as S,shutil,subprocess,unicodedata as U,sys
+          base,pdf,out=map(P.Path,sys.argv[1:4]);out.mkdir(exist_ok=True,parents=True)
+          sha=lambda p:H.sha256(p.read_bytes()).hexdigest();hs=lambda s:H.sha256(s.encode()).hexdigest();norm=lambda s:''.join(U.normalize('NFC',s).split())
+          checks=[]
+          def ck(n,v):
+              assert v,n
+              assert n not in {c['case'] for c in checks},n
+              checks.append({'case':n,'pass':True})
+          inputs={n:sha(base/n) for n in ('grammar-repaired.sqlite','reader-candidate.sqlite')}
+          ck('pdf_exact',sha(pdf)=='e66404cf48ef79bf83bb425df04f98f4063a77fbdee99bcdf4a1d8f2f905f35d')
+          ck('grammar_exact',inputs['grammar-repaired.sqlite']=='cef9f0200512d7404f53bae1ff501f51abe94b3ced69f522bd3019c927099e57')
+          ck('reader_exact',inputs['reader-candidate.sqlite']=='54de22b46ec9703d123727ea90d642dbc2a50b05f4f4ecf3e9eb1f39f8266fe3')
+          for n in inputs:shutil.copyfile(base/n,out/n)
+          oldjson={}
+          for f in sorted(base.glob('*.json')):
+              n='tur094-'+f.name if f.name in ('boundary-review.json','result.json') else f.name
+              assert not (out/n).exists();shutil.copyfile(f,out/n);oldjson[n]=sha(f)
+          ck('52_previous_json',len(oldjson)==52)
+          g=S.connect(out/'grammar-repaired.sqlite');r=S.connect(out/'reader-candidate.sqlite');g.execute('pragma foreign_keys=on');r.execute('pragma foreign_keys=on')
+          pages={p:norm(subprocess.check_output(['pdftotext','-f',str(p),'-l',str(p),'-layout',str(pdf),'-']).decode()) for p in (8,9)}
+          source=lambda p,o:g.execute('select raw,body,classification,spans from line where law=1632 and page=? and ordinal=?',(p,o)).fetchone()
+          for o in range(36):ck(f'pdf_line_8_{o}',norm(source(8,o)[0]) in pages[8])
+          for o in (0,1):ck(f'next_page_9_{o}',norm(source(9,o)[0]) in pages[9])
+          a='1632:normal:33';raw,clean,kind,spans=source(8,30)
+          ck('title_exact',raw==clean=='İhraç cezasının mahiyeti ve neticeleri:' and kind=='HEADING_CANDIDATE' and not any(x['flags']&1 for x in J.loads(spans)))
+          ck('header_exact',source(8,31)[0]=='Madde 33 – (Mülga : 22/3/2000-4551/38 md.)' and source(8,31)[2]=='ARTICLE_HEADER')
+          ck('ordered_target',norm(raw+source(8,31)[0]) in pages[8])
+          ck('next_m34',g.execute('select header_page,header_ordinal from article where id=?',('1632:normal:34',)).fetchone()==(9,1) and source(9,0)[2]=='HEADING_CANDIDATE')
+          ck('prior_m32_end',g.execute('select article_id from membership where law=1632 and page=8 and ordinal=29').fetchone()==('1632:normal:32',))
+          rows=g.execute('select page,ordinal,body from membership where article_id=? order by page,ordinal',(a,)).fetchall()
+          ck('one_repeal_body',rows==[(8,31,'(Mülga : 22/3/2000-4551/38 md.)')])
+          ck('no_node',not g.execute('select 1 from node where article_id=?',(a,)).fetchone())
+          ck('prior_hold',r.execute('select status,reason from article_index where id=?',(a,)).fetchone()==('WITHHELD_REVIEW','TUR094_MISSING_TITLE'))
+          ck('prior_no_reader',not r.execute('select 1 from reader_line where article_id=?',(a,)).fetchone() and not r.execute('select 1 from reader_annotation where article_id=?',(a,)).fetchone())
+          for n,o,fo,fnum in [(31,7,32,10),(32,15,34,11)]:
+              ck(f'm{n}_footnote_anchor',any(x['flags']&1 and x['text']==str(fnum) for x in J.loads(source(8,o)[3])) and source(8,fo)[0].startswith(str(fnum)+' ') and '4551' in source(8,fo)[0] and source(8,fo+1)[2]=='FOOTNOTE_CANDIDATE')
+              ck(f'm{n}_already_held',r.execute('select status from article_index where id=?',(f'1632:normal:{n}',)).fetchone()==('WITHHELD_REVIEW',))
+          for o in [30,32,33,34,35]:ck(f'outside_membership_{o}',not g.execute('select 1 from membership where law=1632 and page=8 and ordinal=?',(o,)).fetchone())
+          ck('title_role_free',not g.execute('select 1 from source_boundary_repair where law=1632 and page=8 and ordinal=30').fetchone())
+          g.execute('insert into source_boundary_repair values(?,?,?,?,?,?)',(1632,8,30,a,'TITLE',hs(raw)))
+          roles=[[a,8,30,'TITLE',raw,hs(raw)]];restored={a:rows}
+          r.execute('insert into reader_annotation values(?,?,?,?,?,?)',(a,'TITLE',8,30,raw,hs(raw)))
+          r.execute('update article_index set status=?,reason=? where id=?',('CANDIDATE_UNVERIFIED','SOURCE_BOUNDARY_REVIEW_ONLY',a));r.executemany('insert into reader_line values(?,?,?,?,?)',[(a,1632,x,y,b) for x,y,b in rows])
+          r.execute("update metadata set value='TUR095' where key='projection_revision'");g.commit();r.commit()
+          diffs={}
+          for db,fn,expect in [(g,'grammar-repaired.sqlite',{'source_boundary_repair':(1,0)}),(r,'reader-candidate.sqlite',{'article_index':(1,1),'reader_line':(1,0),'reader_annotation':(1,0),'metadata':(1,1)})]:
+              ck(fn+'_integrity',db.execute('pragma integrity_check').fetchone()==('ok',) and not db.execute('pragma foreign_key_check').fetchall());db.execute('attach database ? as prior',(str(base/fn),));diff={}
+              for (t,) in db.execute("select name from main.sqlite_master where type='table'").fetchall():
+                  d=tuple(db.execute(f'select count(*) from (select * from {x}."{t}" except select * from {y}."{t}")').fetchone()[0] for x,y in [('main','prior'),('prior','main')]);ck(fn+'_'+t+'_except',d==expect.get(t,(0,0)));diff[t]=d
+              diffs[fn]=diff;db.execute('detach database prior')
+          ck('counts',r.execute("select count(*) from article_index where status='CANDIDATE_UNVERIFIED'").fetchone()==(1481,) and r.execute("select count(*) from article_index where status='WITHHELD_REVIEW'").fetchone()==(27,) and r.execute('select count(*) from reader_line').fetchone()==(18156,) and r.execute('select count(*) from reader_annotation').fetchone()==(248,) and g.execute('select count(*) from source_boundary_repair').fetchone()==(194,))
+          ck('all_holds_no_body',not r.execute("select 1 from reader_line join article_index on article_index.id=reader_line.article_id where article_index.status='WITHHELD_REVIEW'").fetchone())
+          ck('structural_outside_membership',not g.execute('select 1 from membership join source_boundary_repair using(law,page,ordinal) where source_boundary_repair.article_id is null').fetchone())
+          ck('annex_exclusion',g.execute("select count(*) from line where law=1632 and classification='ANNEX_REVIEW'").fetchone()==(219,) and not g.execute("select 1 from membership join line using(law,page,ordinal) where law=1632 and classification='ANNEX_REVIEW'").fetchone())
+          ck('prior_json_exact',all(sha(out/n)==h for n,h in oldjson.items()));ck('inputs_unchanged',all(sha(base/n)==h for n,h in inputs.items()))
+          review={'restored':restored,'roles':roles,'new_holds':{},'neighbor_footnotes':{'10':[[8,32],[8,33]],'11':[[8,34],[8,35]]},'sql_except':diffs,'prior_json_sha256':oldjson,'legal_paragraph_number':None,'automatic_effect':False,'legacy_nodes_authoritative':False,'status':'REVIEW_REQUIRED','promotion_allowed':False}
+          (out/'boundary-review.json').write_text(J.dumps(review,ensure_ascii=False,indent=2));res={'checks':checks,'status':'TUR095_CANDIDATE_ONLY','promotion_allowed':False,'production':'NO-GO','reader_sha256':sha(out/'reader-candidate.sqlite'),'grammar_sha256':sha(out/'grammar-repaired.sqlite'),'new_snapshot_pinned':False};(out/'result.json').write_text(J.dumps(res,ensure_ascii=False,indent=2));print(len(checks),res['reader_sha256'],res['grammar_sha256'])
+          PY
+          python /tmp/tur095_repair.py "$(dirname "$(find prior94 -name grammar-repaired.sqlite -print -quit)")" "$(find source44 -name u15.pdf -print -quit)" tur095-evidence
+          python - <<'PY'
+          import sys,pathlib as P,hashlib as H,json as J
+          sys.path.insert(0,'tools')
+          import audit_candidate_reader as cr
+          sha=lambda p:H.sha256(p.read_bytes()).hexdigest()
+          out=P.Path('tur095-evidence');p=out/'reader-candidate.sqlite'
+          r=J.loads((out/'result.json').read_bytes())
+          for file in [next(P.Path('prior94').rglob('reader-candidate.sqlite')),p]:
+              db=cr.snapshot(file,sha(file))
+              try:cr.read_article(db,'1632:normal:33');raise AssertionError('m33')
+              except cr.Denied as e:assert str(e)=='REVISION_ARTICLE_QUARANTINED'
+              r['checks'].append({'case':f'{file.parent.name}_m33_hold','pass':True})
+              db.close()
+          assert len({x['case'] for x in r['checks']})==len(r['checks'])
+          (out/'result.json').write_text(J.dumps(r,ensure_ascii=False,indent=2))
+          print('PASS',len(r['checks']))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR095-Candidate-NOT-RELEASE
+          path: tur095-evidence/
+          if-no-files-found: error
