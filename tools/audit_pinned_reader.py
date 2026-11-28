@@ -3,6 +3,7 @@ independently of the supplied DB. Pins are not signatures or legal approval."""
 import argparse,json,sys,sqlite3
 from audit_candidate_reader import snapshot,read_article,Denied
 PINS={
+ "TUR083":{"sha256":"70dd443f64bd614642cbb338bee8ee6a71ad31b897dff0515e8550e95f9e1fa2","artifact":15258444815,"run":46133447598,"head":"3fc04be4143322dd0a7978a585fd08d2b35d11bb"},
  "TUR082":{"sha256":"e0cbfb9a807b0edbeebdfd434208148f43a731d274f82c490aab3b39da17fcea","artifact":15257832912,"run":46132554106,"head":"155eedf3ca6323be4629583e54cf8dfbf569cd48"},
  "TUR081":{"sha256":"fa4a2da5ed164fb70861c573200832832415989d3f771c1235203eb04024fac5","artifact":15255977897,"run":46126985221,"head":"49169cd9ed1b021c5861847ba7093845720397fe"},
  "TUR080":{"sha256":"3e46cf18e90c9a95175ae2e073d31ef41a8ebea86b63f39535c5bee7f417509b","artifact":15254404769,"run":46125710964,"head":"c37e0757b9fa7af933a41b451f77f879cfc2c395"},
