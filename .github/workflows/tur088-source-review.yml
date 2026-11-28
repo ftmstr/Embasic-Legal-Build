@@ -1,0 +1,105 @@
+name: TUR088 source boundary candidate NOT RELEASE
+on:
+  push:
+    branches: ['audit/tur035-nuget-byte-parity']
+    paths: ['.github/workflows/tur088-source-review.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15022263838'
+          run-id: '45618167694'
+          github-token: ${{ github.token }}
+          path: source44
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '15269205908'
+          run-id: '46158676390'
+          github-token: ${{ github.token }}
+          path: prior87
+      - name: Independently reconcile m1 m7 m8 source and candidate
+        run: |
+          command -v pdftotext || (sudo apt-get update && sudo apt-get install -y poppler-utils)
+          python3 - <<'PY'
+          import pathlib as P,hashlib as H,json as J,sqlite3 as S,shutil,subprocess,unicodedata as U,sys
+          base=next(P.Path('prior87').rglob('grammar-repaired.sqlite')).parent
+          pdf=next(P.Path('source44').rglob('u15.pdf'))
+          out=P.Path('tur088-evidence');out.mkdir()
+          sha=lambda p:H.sha256(p.read_bytes()).hexdigest();hs=lambda s:H.sha256(s.encode()).hexdigest();norm=lambda s:' '.join(U.normalize('NFC',s).split())
+          checks=[]
+          def ck(n,v):
+              assert v,n
+              checks.append({'case':n,'pass':True})
+          inputs={n:sha(base/n) for n in ['grammar-repaired.sqlite','reader-candidate.sqlite']}
+          ck('pdf_exact',sha(pdf)=='e66404cf48ef79bf83bb425df04f98f4063a77fbdee99bcdf4a1d8f2f905f35d')
+          ck('grammar_exact',inputs['grammar-repaired.sqlite']=='f4652756a9d88e1199db11e10e45441eac9272b08ba4285c97610907648c4b9e')
+          ck('reader_exact',inputs['reader-candidate.sqlite']=='9d5e5340b91ad00a2b76f2f9bcc377af11019638dfff2203f919a3d69fbbd601')
+          for n in inputs:shutil.copyfile(base/n,out/n)
+          oldjson={}
+          for f in sorted(base.glob('*.json')):
+              n='tur087-'+f.name if f.name in ('boundary-review.json','result.json') else f.name
+              assert not (out/n).exists();shutil.copyfile(f,out/n);oldjson[n]=sha(f)
+          ck('prior38_json',len(oldjson)==38)
+          g=S.connect(out/'grammar-repaired.sqlite');r=S.connect(out/'reader-candidate.sqlite');g.execute('pragma foreign_keys=on');r.execute('pragma foreign_keys=on')
+          pages={p:norm(subprocess.check_output(['pdftotext','-f',str(p),'-l',str(p),'-layout',str(pdf),'-']).decode()) for p in (1,2,3)}
+          source=lambda p,o:g.execute('select raw,body,classification,spans from line where law=1632 and page=? and ordinal=?',(p,o)).fetchone()
+          def check_line(p,o):
+              raw=source(p,o)[0];ck(f'pdf_line_{p}_{o}',norm(raw) in pages[p]);return raw
+          ids=[f'1632:normal:{n}' for n in (1,7,8)]
+          ck('m1_initial_membership',g.execute('select page,ordinal from membership where article_id=? order by page,ordinal',(ids[0],)).fetchall()==[(1,o) for o in range(14,24)])
+          ck('heading_superscript12',any(s['text']=='12' and s['size']<10 for s in J.loads(source(1,0)[3])))
+          ck('m7_superscript4',any(s['text']=='4' and s['size']<10 for s in J.loads(source(3,4)[3])))
+          ck('m3_superscript3',any(s['text']=='3' and s['size']<10 for s in J.loads(source(2,3)[3])))
+          roles=[]
+          def role(a,p,o,k):
+              raw=check_line(p,o);ck(f'role_free_{p}_{o}',not g.execute('select 1 from membership where law=1632 and page=? and ordinal=?',(p,o)).fetchone() and not g.execute('select 1 from source_boundary_repair where law=1632 and page=? and ordinal=?',(p,o)).fetchone());g.execute('insert into source_boundary_repair values(?,?,?,?,?,?)',(1632,p,o,a,k,hs(raw)));roles.append([a,p,o,k,raw,hs(raw)])
+          g.execute('delete from membership where article_id=? and page=1 and ordinal between 20 and 23',(ids[0],))
+          for o in range(20,46):role(None,1,o,'STRUCTURAL_FOOTNOTE')
+          for a,p,o in [(ids[0],1,13),(ids[1],2,26),(ids[2],3,10)]:role(a,p,o,'TITLE')
+          for o in (32,33):role(ids[1],3,o,'FOOTNOTE')
+          ck('m3_footnote_not_m7',not g.execute('select 1 from membership where law=1632 and page=2 and ordinal between 31 and 33').fetchone())
+          marks=[(ids[0],1,17,'1 -'),(ids[0],1,19,'2 -'),(ids[1],2,30,'A)'),(ids[1],3,0,'B)'),(ids[1],3,2,'C)'),(ids[1],3,5,'D)'),(ids[1],3,8,'E)'),(ids[2],3,11,'1 -'),(ids[2],3,12,'2 -'),(ids[2],3,15,'3 -')]
+          for a,p,o,k in marks:
+              ck(f'literal_{p}_{o}',g.execute('select body from membership where article_id=? and page=? and ordinal=?',(a,p,o)).fetchone()[0].startswith(k) and not g.execute('select 1 from node where article_id=? and page=? and ordinal=?',(a,p,o)).fetchone() and not g.execute('select 1 from grammar_overlay where law=1632 and page=? and ordinal=?',(p,o)).fetchone());nid=f'{a}/literal@{p}:{o}';g.execute('insert into node values(?,?,?,?,?,?,?,?)',(nid,a,a,'literal_marker_candidate',k,p,o,'REVIEW_REQUIRED'));g.execute('insert into grammar_overlay values(?,?,?,?,?,?,?,?,?)',(1632,p,o,None,nid,a,'literal_marker_candidate','REVIEW_REQUIRED','TUR088 source-coordinate marker; no legal number'))
+          restored={}
+          for a,count in zip(ids,[6,14,7]):
+              rows=g.execute('select page,ordinal,body from membership where article_id=? order by page,ordinal',(a,)).fetchall();ck(a+'_body_count',len(rows)==count)
+              for p,o,b in rows:check_line(p,o);ck(f'{a}_{p}_{o}_header_not_repeated',not b.startswith('Madde '+a.split(':')[-1]+' '))
+              ck(a+'_prior_hold',r.execute('select status from article_index where id=?',(a,)).fetchone()==('WITHHELD_REVIEW',) and not r.execute('select 1 from reader_line where article_id=?',(a,)).fetchone());r.execute('update article_index set status=?,reason=? where id=?',('CANDIDATE_UNVERIFIED','SOURCE_BOUNDARY_REVIEW_ONLY',a));r.executemany('insert into reader_line values(?,?,?,?,?)',[(a,1632,p,o,b) for p,o,b in rows]);restored[a]=rows
+          for a,p,o,k,raw,h in roles:
+              if a:r.execute('insert into reader_annotation values(?,?,?,?,?,?)',(a,k,p,o,raw,h))
+          r.execute("update metadata set value='TUR088' where key='projection_revision'");g.commit();r.commit()
+          diffs={}
+          for db,fn,expect in [(g,'grammar-repaired.sqlite',{'node':(10,0),'grammar_overlay':(10,0),'source_boundary_repair':(31,0),'membership':(0,4)}),(r,'reader-candidate.sqlite',{'article_index':(3,3),'reader_line':(27,0),'reader_annotation':(5,0),'metadata':(1,1)})]:
+              ck(fn+'_integrity',db.execute('pragma integrity_check').fetchone()==('ok',) and not db.execute('pragma foreign_key_check').fetchall());db.execute('attach database ? as prior',(str(base/fn),));diff={}
+              for (t,) in db.execute("select name from main.sqlite_master where type='table'").fetchall():
+                  d=tuple(db.execute(f'select count(*) from (select * from {a}."{t}" except select * from {b}."{t}")').fetchone()[0] for a,b in [('main','prior'),('prior','main')]);ck(fn+'_'+t+'_except',d==expect.get(t,(0,0)));diff[t]=d
+              diffs[fn]=diff;db.execute('detach database prior')
+          ck('counts',r.execute("select count(*) from article_index where status='CANDIDATE_UNVERIFIED'").fetchone()==(1472,) and r.execute("select count(*) from article_index where status='WITHHELD_REVIEW'").fetchone()==(36,) and r.execute('select count(*) from reader_line').fetchone()==(18077,) and r.execute('select count(*) from reader_annotation').fetchone()==(218,) and g.execute('select count(*) from source_boundary_repair').fetchone()==(159,))
+          ck('structural_footnotes_no_membership',not g.execute('select 1 from membership join source_boundary_repair using(law,page,ordinal) where role="STRUCTURAL_FOOTNOTE"').fetchone())
+          ck('annex_exclusion',g.execute("select count(*) from line where law=1632 and classification='ANNEX_REVIEW'").fetchone()==(219,) and not g.execute("select 1 from membership join line using(law,page,ordinal) where law=1632 and classification='ANNEX_REVIEW'").fetchone())
+          ck('prior_json_exact',all(sha(out/n)==h for n,h in oldjson.items()));ck('inputs_unchanged',all(sha(base/n)==h for n,h in inputs.items()))
+          sys.path.insert(0,'tools');import audit_candidate_reader as cr
+          db=cr.snapshot(out/'reader-candidate.sqlite',sha(out/'reader-candidate.sqlite'))
+          for a in ids:
+              try:cr.read_article(db,a);denied=False
+              except cr.Denied as e:denied=str(e)=='REVISION_ARTICLE_QUARANTINED'
+              ck(a+'_unverified_candidate_denied',denied)
+          db.close()
+          review={'restored':restored,'literal_markers':marks,'roles':roles,'structural_footnotes':[{'number':1,'owner':'LAW_TITLE','anchor':[1,0],'rows':[[1,o] for o in range(20,44)]},{'number':2,'owner':'LAW_TITLE','anchor':[1,0],'rows':[[1,o] for o in range(44,46)]}],'m7_footnote4':{'anchor':[3,4],'rows':[[3,32],[3,33]]},'m3_footnote3_outside_scope':{'anchor':[2,3],'rows':[[2,o] for o in range(31,34)]},'m1_common_intro':[[1,o] for o in range(14,17)],'m7_common_intro':[[2,o] for o in range(27,30)],'sql_except':diffs,'prior_json_sha256':oldjson,'legal_paragraph_number':None,'automatic_effect':False,'legacy_nodes_authoritative':False,'status':'REVIEW_REQUIRED','promotion_allowed':False}
+          (out/'boundary-review.json').write_text(J.dumps(review,ensure_ascii=False,indent=2));res={'checks':checks,'status':'TUR088_CANDIDATE_ONLY','promotion_allowed':False,'production':'NO-GO','reader_sha256':sha(out/'reader-candidate.sqlite'),'grammar_sha256':sha(out/'grammar-repaired.sqlite'),'new_snapshot_pinned':False};(out/'result.json').write_text(J.dumps(res,ensure_ascii=False,indent=2));print(len(checks),res['reader_sha256'],res['grammar_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TUR088-Candidate-NOT-RELEASE
+          path: tur088-evidence/
+          if-no-files-found: error
